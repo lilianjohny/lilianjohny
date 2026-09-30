@@ -1,2 +1,3 @@
 # Core deps for the security toolkit. Standard-library is used where possible.
 requests>=2.31.0
+PyYAML>=6.0        # pentest scope files, OpenAPI/YAML parsing, SOC log configs
