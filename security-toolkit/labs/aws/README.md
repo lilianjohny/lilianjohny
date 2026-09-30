@@ -48,6 +48,11 @@ in order — each builds on the last — or jump to the gap you're targeting.
 > Labs 07–09 target the **KBR Cloud Engineer (AWS GovCloud)** profile — see
 > [`../../job-tracks/kbr-cloud-engineer.md`](../../job-tracks/kbr-cloud-engineer.md).
 
+> **Each lab is copy-paste runnable:** every step has the actual CLI commands
+> inline, with the AWS Console (GUI) click-path given wherever a console is the
+> natural way to do it. Set `AWS_PROFILE`, `AWS_REGION`, and `ACCT_ID` from Lab 00
+> first; later labs reuse them.
+
 ## Tooling you'll use
 - **AWS CLI v2** (`aws configure sso` — never long-lived root/user keys).
 - **This toolkit** to *verify* your hardening:

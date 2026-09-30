@@ -1,129 +1,140 @@
 # Lab 02 — Container Image Security
 
 **Skills practiced:** Dockerfile hardening · ECR + scan-on-push · SBOM (Syft) ·
-vuln scanning (Trivy/Grype) · image signing & verification (cosign) · minimal/
-distroless base images · registry access control · shift-left CI gating.
+vuln scanning (Trivy/Grype) · image signing (cosign) · distroless bases ·
+registry access control · CI gating.
 **Proves (JD):** *"container security."*
 
 ## Objective
-Take a deliberately vulnerable container image, find what's wrong with it the way
-an attacker/scanner would, then rebuild it secure-by-design and **prove** the
-supply chain: scanned, SBOM'd, signed, least-privilege, stored in a locked-down
-registry — and gate all of that in CI.
+Find what's wrong with a deliberately vulnerable image, rebuild it
+secure-by-design, and prove the supply chain: scanned, SBOM'd, signed,
+least-privilege, in a locked registry — gated in CI.
 
 ## Est. time / cost
-2–3 h · **~$0–1** (ECR storage pennies; delete images after).
+2–3 h · **~$0–1** (ECR storage pennies).
 
 ## Prerequisites
-- Docker (or `nerdctl`/`podman`), AWS CLI v2.
-- `trivy`, `grype`, `syft`, `cosign` — install via `../../security-toolkit/setup.sh`
-  helpers or each tool's docs. Check with `bash ../../setup.sh --doctor`.
+- Lab 00 done. Docker running (`docker info`).
+- Tools: `trivy`, `grype`, `syft`, `cosign`:
+  ```bash
+  # Linux (adjust for your distro/arch); or see each tool's docs / brew on macOS
+  curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+  curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
+  curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh  | sudo sh -s -- -b /usr/local/bin
+  go install github.com/sigstore/cosign/v2/cmd/cosign@latest 2>/dev/null || echo "install cosign per sigstore docs"
+  bash ../../setup.sh --doctor      # confirm what you have
+  ```
 
 ---
 
 ## Part A — Build: a deliberately weak image
-Create `Dockerfile.weak`:
-```dockerfile
-FROM node:18                      # full, fat, outdated base
+```bash
+mkdir -p /tmp/lab02 && cd /tmp/lab02
+cat > server.js <<'EOF'
+require('http').createServer((_,res)=>res.end('ok')).listen(3000);
+EOF
+cat > package.json <<'EOF'
+{ "name":"lab02","version":"1.0.0","dependencies":{} }
+EOF
+cat > Dockerfile.weak <<'EOF'
+FROM node:18
 WORKDIR /app
 COPY . .
-RUN npm install                   # unpinned deps
-ENV API_KEY=supersecret123        # secret baked into the image (!)
-USER root                         # runs as root (!)
-CMD ["node", "server.js"]
-```
-Build and push to ECR:
-```bash
-aws ecr create-repository --repository-name lab02-app --image-scanning-configuration scanOnPush=true
+RUN npm install
+ENV API_KEY=supersecret123
+USER root
+CMD ["node","server.js"]
+EOF
 docker build -t lab02-app:weak -f Dockerfile.weak .
-# tag + push to your ECR repo...
+
+# Push to ECR (scan-on-push enabled)
+aws ecr create-repository --repository-name lab02-app \
+  --image-scanning-configuration scanOnPush=true --region "$AWS_REGION"
+aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS \
+  --password-stdin $ACCT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+docker tag lab02-app:weak $ACCT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/lab02-app:weak
+docker push $ACCT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/lab02-app:weak
 ```
 
-## Part B — Attack / observe: see the weaknesses
-1. **Vuln scan:**
-   ```bash
-   trivy image lab02-app:weak            # OS + library CVEs
-   grype lab02-app:weak                  # second opinion
-   ```
-2. **Secret in the image** (the baked-in `API_KEY`):
-   ```bash
-   trivy image --scanners secret lab02-app:weak
-   docker history --no-trunc lab02-app:weak | grep -i api_key   # it's in a layer
-   ```
-3. **Runs as root:** `docker run --rm lab02-app:weak id` → `uid=0(root)`.
-4. **ECR scan-on-push** findings in the console — note critical/high counts.
-5. Confirm the toolkit sees it too:
-   ```bash
-   bash ../../appsec/sast/semgrep_scan.sh .        # app-code issues
-   bash ../../dod/scripts/generate_sbom.sh lab02-app:weak   # SBOM of the mess
-   ```
+## Part B — Attack / observe
+```bash
+trivy image lab02-app:weak                         # OS + library CVEs (lots)
+grype lab02-app:weak                               # second opinion
+trivy image --scanners secret lab02-app:weak       # finds baked-in API_KEY
+docker history --no-trunc lab02-app:weak | grep -i api_key   # secret in a layer
+docker run --rm lab02-app:weak id                  # uid=0(root)  ❌
+bash ../../dod/scripts/generate_sbom.sh lab02-app:weak
+```
+**GUI:** Console → **ECR → Repositories → lab02-app → Images** → click the digest
+→ see **scan findings** (critical/high counts).
 
 ## Part C — Harden: secure-by-design image
-Create `Dockerfile.secure`:
-```dockerfile
-# Pin by digest; use a minimal/distroless runtime
+```bash
+cd /tmp/lab02
+cat > .dockerignore <<'EOF'
+.git
+.env
+node_modules
+EOF
+cat > Dockerfile.secure <<'EOF'
 FROM node:18.20.4-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --omit=dev             # pinned, reproducible, no dev deps
+RUN npm ci --omit=dev || npm install --omit=dev
 COPY . .
 
 FROM gcr.io/distroless/nodejs18-debian12
 WORKDIR /app
 COPY --from=build /app /app
-USER 1000                         # non-root
-# NO secrets in the image — inject at runtime (Secrets Manager / env from task role)
+USER 1000
 CMD ["server.js"]
+EOF
+docker build -t lab02-app:secure -f Dockerfile.secure .
+
+# Move the secret to Secrets Manager (read at runtime via the task/pod role)
+aws secretsmanager create-secret --name lab02/api-key --secret-string "supersecret123"
+
+# Lock the ECR repo: immutable tags + KMS + pull only for your workload role
+aws ecr put-image-tag-mutability --repository-name lab02-app --image-tag-mutability IMMUTABLE
 ```
-Also:
-- Add a **`.dockerignore`** (drop `.git`, `.env`, node_modules).
-- Add a **HEALTHCHECK** (see `../../security-toolkit/Dockerfile` for the pattern).
-- Move the secret to **AWS Secrets Manager**, read via the task/pod role.
-- Lock the **ECR repo**: immutable tags, scan-on-push, KMS encryption, a
-  repository policy limiting pull to your workload roles only.
+**GUI:** ECR → repo → **Edit** → **Tag immutability = Enabled**, **Scan on push =
+Enabled**, **Encryption = KMS**. Add a **Permissions** policy limiting `ecr:Get*`/
+`BatchGetImage` to your workload role ARN.
 
 ## Part D — Prove the supply chain
 ```bash
-# 1. Scan is clean (or only accepted, documented findings)
-trivy image --severity HIGH,CRITICAL --exit-code 1 lab02-app:secure
-
-# 2. Generate + keep an SBOM
-syft lab02-app:secure -o spdx-json > sbom.spdx.json
-#    (or the toolkit wrapper)
+trivy image --severity HIGH,CRITICAL --exit-code 1 lab02-app:secure   # gate passes (0)
+syft lab02-app:secure -o spdx-json > sbom.spdx.json                   # keep SBOM
 bash ../../dod/scripts/generate_sbom.sh lab02-app:secure
-
-# 3. Sign the image and verify (keyless via OIDC, or a cosign key)
-cosign sign lab02-app:secure
-cosign verify lab02-app:secure ...
-
-# 4. Confirm non-root + no secret
-docker run --rm lab02-app:secure id           # non-root uid
-trivy image --scanners secret lab02-app:secure # clean
+cosign generate-key-pair                                              # or keyless: cosign sign --yes <ref>
+cosign sign --key cosign.key $ACCT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/lab02-app:secure 2>/dev/null || echo "push secure first, then sign by digest"
+docker run --rm lab02-app:secure id                                   # non-root uid=1000 ✅
+trivy image --scanners secret lab02-app:secure                       # clean ✅
 ```
-Success = HIGH/CRITICAL gate passes, SBOM produced, image signed & verifiable,
-runs non-root, zero baked-in secrets, ECR locked down.
 
 ## Part E — Gate it in CI (shift-left)
-Wire the same checks into a pipeline so a bad image can't ship:
-- Reuse `../../cloud/cicd/pipeline_gate.sh` and the patterns in
-  `../../.github/workflows/devsecops.yml` / `../../dod/pipeline/`.
-- Fail the build on HIGH/CRITICAL, missing SBOM, or unsigned image.
+Reuse `../../cloud/cicd/pipeline_gate.sh` and the workflow patterns in
+`../../.github/workflows/devsecops.yml`. Minimum gate:
+```bash
+trivy image --severity HIGH,CRITICAL --exit-code 1 <image>   # fail build on High/Critical
+test -s sbom.spdx.json                                       # require an SBOM
+cosign verify --key cosign.pub <image>                       # require a signature
+```
 
 ## Cleanup
 ```bash
-aws ecr delete-repository --repository-name lab02-app --force
-docker image rm lab02-app:weak lab02-app:secure
+aws ecr delete-repository --repository-name lab02-app --force --region "$AWS_REGION"
+aws secretsmanager delete-secret --secret-id lab02/api-key --force-delete-without-recovery
+docker image rm lab02-app:weak lab02-app:secure 2>/dev/null
 ```
 
 ## Portfolio artifact
-- **Weak vs secure Dockerfile** side by side, with the scan output before/after
-  (CVE counts, secret finding gone, root → non-root).
+- **Weak vs secure Dockerfile** + scan output before/after (CVE counts, secret
+  gone, root → non-root).
 - The **SBOM** and the **cosign verify** output.
-- A short "container supply chain" diagram: build → scan → SBOM → sign → admit.
+- A "build → scan → SBOM → sign → admit" supply-chain diagram.
 
 ## Stretch goals
-- Add **image-signature enforcement** at deploy (feeds Lab 03: only signed images
-  admitted to the cluster).
-- Diff **distroless vs alpine vs slim** on image size and CVE count; write it up.
-- Add a **custom Semgrep rule** (`../../appsec/sast/rules/`) for a bad pattern in
-  your app and catch it in CI.
+- Enforce **signature verification at deploy** (feeds Lab 03 admission control).
+- Diff **distroless vs alpine vs slim** on size + CVE count.
+- Add a **custom Semgrep rule** (`../../appsec/sast/rules/`) and catch it in CI.

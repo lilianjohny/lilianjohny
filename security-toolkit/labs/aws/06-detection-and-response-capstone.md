@@ -1,86 +1,101 @@
 # Lab 06 — Detection & Response (Capstone)
 
-**Skills practiced:** GuardDuty · CloudTrail analysis · log-based threat hunting ·
-detection engineering · automated response (EventBridge → Lambda/SSM) · incident
-triage & writeup.
-**Proves (JD):** ties the whole stack together — you can *see* and *stop* an
-attack across identity, container, orchestration, tenant, and network layers.
+**Skills practiced:** GuardDuty · CloudTrail analysis · log-based hunting ·
+detection engineering · automated response (EventBridge → Lambda) · IR writeup.
+**Proves (JD):** see and stop an attack across identity, container, orchestration,
+tenant, and network layers.
 
 ## Objective
-Turn on detection across everything you built, **simulate a realistic attack
-chain** against your own sandbox, hunt it in the logs, and build an **automated
-response**. Finish with an incident report — the artifact that most impresses in
-a portfolio.
+Turn on detection, simulate a realistic attack chain against your own sandbox,
+hunt it in the logs, build an automated response, and write an incident report.
 
 ## Est. time / cost
-3–4 h · **~$1–3** (GuardDuty + log storage; disable after).
+3–4 h · **~$1–3** (GuardDuty + logs; disable after).
 
 ## Prerequisites
-- Labs 00–05 done (you'll attack the things you hardened).
-- Toolkit: `../../cloud/detection/aws_detection_coverage.py`,
+- Labs 00–05 done. Tools: `../../cloud/detection/aws_detection_coverage.py`,
   `../../cloud/detection/cloudtrail_hunt.md`, `../../soc/incident/incident_report.py`.
 
 ---
 
-## Part A — Build: turn on the eyes
-1. **GuardDuty** (with S3, EKS, Malware, and RDS protections as available).
-2. Confirm **CloudTrail** (Lab 00) is all-Region + log file validation on.
-3. **VPC Flow Logs** (Lab 05) and **EKS audit logs** (Lab 03) flowing.
-4. Centralize to CloudWatch Logs / an S3 log bucket.
-5. Baseline coverage:
-   ```bash
-   python3 ../../cloud/detection/aws_detection_coverage.py
-   ```
+## Part A — Turn on the eyes
+```bash
+DET=$(aws guardduty create-detector --enable --query DetectorId --output text)
+# (S3, EKS, Malware protections are on by default in current GuardDuty)
+aws cloudtrail get-trail-status --name org-trail --query IsLogging   # from Lab 00: true
+python3 ../../cloud/detection/aws_detection_coverage.py
+```
+**GUI:** Console → **GuardDuty → Enable GuardDuty**; **CloudTrail → Trails**
+confirm `org-trail` is logging; **Config** on from Lab 00.
 
-## Part B — Attack: run a realistic chain (against your own account)
-Do each, then find it in the logs:
-1. **Recon / cred abuse:** call APIs from an unusual context; disable/anonymize
-   an S3 bucket setting → GuardDuty `Policy`/`Discovery` findings.
-2. **IAM escalation attempt:** try to attach an admin policy from a low-priv role
-   (should be denied by Lab 01 boundaries) — find the `AccessDenied` in CloudTrail.
-3. **Container/orchestration:** from a pod, hit IMDS (blocked in Lab 03) and try
-   `kubectl get secrets -A` → EKS audit + GuardDuty EKS finding.
-4. **Cross-tenant:** attempt the Lab 04 cross-tenant read (denied) — find it.
-5. **Exfil path:** attempt egress from a data subnet (blocked in Lab 05) — find it
-   in Flow Logs.
+## Part B — Attack (against your own account) — generate real findings
+```bash
+# GuardDuty ships sample findings so you can build detection/response safely:
+aws guardduty create-sample-findings --detector-id "$DET" \
+  --finding-types "UnauthorizedAccess:IAMUser/MaliciousIPCaller.Custom" \
+                  "Discovery:S3/AnomalousBehavior" \
+                  "CredentialAccess:IAMUser/AnomalousBehavior"
+# Real denied action to find in CloudTrail (assume a low-priv role and try admin):
+aws iam attach-role-policy --role-name app-reader --policy-arn arn:aws:iam::aws:policy/AdministratorAccess 2>&1 | grep -i denied || true
+```
+Also re-run, from earlier labs: pod → IMDS (Lab 03, blocked), cross-tenant read
+(Lab 04, denied), data-subnet egress (Lab 05, blocked) — each leaves a trail.
 
 ## Part C — Hunt: find it in the logs
-Work through `../../cloud/detection/cloudtrail_hunt.md` queries:
-- Who did what, from where, when? Pivot on principal, source IP, user agent.
-- Correlate a GuardDuty finding → the exact CloudTrail events behind it.
-- Write the **attack timeline** from the evidence.
+Use `../../cloud/detection/cloudtrail_hunt.md`. Quick starts:
+```bash
+aws guardduty list-findings --detector-id "$DET" --query 'FindingIds' --output text | \
+  xargs aws guardduty get-findings --detector-id "$DET" --finding-ids
+
+# CloudTrail: who did what (via Athena, or lookup-events for recent):
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=AttachRolePolicy \
+  --query 'Events[].{User:Username,Time:EventTime}' --output table
+```
+Build the **attack timeline** from the correlated events.
 
 ## Part D — Respond: automate it
-1. **EventBridge rule** on high-severity GuardDuty findings →
-2. **Lambda/SSM automation:** e.g., revoke the offending role's sessions
-   (attach a deny-all boundary), isolate an instance's SG, or disable a key.
-3. Test it: trigger the finding again, watch the automated containment fire.
-4. Map your detections to a framework (`../../soc/`, `../../grc/compliance/crosswalk.py`).
+```bash
+# EventBridge rule on high-severity GuardDuty findings → SNS/Lambda
+aws sns create-topic --name lab06-alerts
+cat > /tmp/pattern.json <<'EOF'
+{"source":["aws.guardduty"],"detail-type":["GuardDuty Finding"],"detail":{"severity":[{"numeric":[">=",7]}]}}
+EOF
+aws events put-rule --name lab06-gd-high --event-pattern file:///tmp/pattern.json
+aws events put-targets --rule lab06-gd-high \
+  --targets "Id=1,Arn=arn:aws:sns:$AWS_REGION:$ACCT_ID:lab06-alerts"
+```
+Attach a **Lambda** target that revokes the offending role's sessions / isolates
+an instance SG (write the function; template in `../../cloud/detection/`).
+**GUI:** **EventBridge → Rules → Create rule** → event pattern (GuardDuty, severity
+≥ 7) → target = Lambda/SNS.
 
 ## Part E — Report
 ```bash
-python3 ../../soc/incident/incident_report.py   # generate a structured IR report
+python3 ../../soc/incident/incident_report.py    # structured IR report
+# Fill: detection → triage → scope → containment → eradication → lessons
 ```
-Fill in: detection → triage → scope → containment → eradication → lessons.
 
 ## Verify
-Success = every simulated step produced evidence you found, at least one
-detection auto-responds, and you have a written incident report with a timeline.
+Success = each simulated step produced evidence you found, at least one detection
+auto-responds, and you have a written incident report with a timeline.
 
 ## Cleanup
-Disable GuardDuty, stop flow/audit logs if not needed, empty/delete log buckets,
-remove EventBridge rules + Lambda. Tear down any remaining lab resources.
+```bash
+aws events remove-targets --rule lab06-gd-high --ids 1
+aws events delete-rule --name lab06-gd-high
+aws sns delete-topic --topic-arn arn:aws:sns:$AWS_REGION:$ACCT_ID:lab06-alerts
+aws guardduty delete-detector --detector-id "$DET"
+aws iam detach-role-policy --role-name app-reader --policy-arn arn:aws:iam::aws:policy/AdministratorAccess 2>/dev/null || true
+```
 
 ## Portfolio artifact (the big one)
 - A polished **incident report**: attack chain, detection sources, timeline,
-  screenshots of findings, the automated response, and remediation.
-- A **detection-coverage matrix**: attack technique → data source → detection →
-  response (map to MITRE ATT&CK for cloud/containers).
-- This report + the six labs' artifacts = a cohesive AWS security portfolio.
+  finding screenshots, the automated response, remediation.
+- A **detection-coverage matrix**: technique → data source → detection → response
+  (map to MITRE ATT&CK for cloud/containers).
+- This + the six labs' artifacts = a cohesive AWS security portfolio.
 
 ## Stretch goals
-- Recreate a couple of detections as **detection-as-code** and gate them in CI.
+- Recreate a couple of detections as **detection-as-code**, gate them in CI.
 - Add **Security Hub** to aggregate findings; write an automation rule.
-- Redo the hunt in a **SIEM** (OpenSearch / your tool) and build a dashboard.
-- Repeat one attack after **every** hardening was reverted, to show the delta the
-  controls make — great "why this matters" slide.
+- Re-run one attack after reverting a hardening to show the control delta.

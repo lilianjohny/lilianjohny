@@ -6,101 +6,146 @@ iteration · app auth with Amazon Cognito.
 **Proves (JD):** *"authentication / authorization."*
 
 ## Objective
-Master AWS authN/authZ end-to-end: prove who you are with short-lived,
-MFA-gated credentials; grant the *minimum* needed with well-scoped policies;
-contain blast radius with boundaries and conditions; and add real
-**application** auth (Cognito) with proper token handling.
+Prove who you are with short-lived, MFA-gated credentials; grant the *minimum*
+with well-scoped policies; contain blast radius with boundaries/conditions; and
+add real application auth (Cognito) with proper token handling.
 
 ## Est. time / cost
-2–3 h · **~$0** (Cognito free tier; no paid resources needed).
+2–3 h · **~$0** (Cognito free tier).
 
 ## Prerequisites
-- Lab 00 done (SSO admin + a ReadOnlyTester identity).
-- AWS CLI v2, `jq`, Python 3.
+- Lab 00 done (`export AWS_PROFILE=admin-labs`, `AWS_REGION`, `ACCT_ID`).
+- `jq` installed. Python 3.
 
 ---
 
 ## Part A — Build: identities and a workload role
-1. Create an S3 bucket `lab01-<youracct>-data` (Block Public Access ON).
-2. Create an IAM **role** `app-reader` with a trust policy your test principal can
-   assume, and a **deliberately broad** policy first: `s3:*` on `*`.
-3. Create a second role `ci-oidc` trusting **GitHub OIDC** (no static keys) —
-   reuse the pattern in `../../iam/terraform/aws/main.tf`.
+```bash
+# 1. A bucket this lab's role should be allowed to read (and nothing else)
+BUCKET=lab01-$ACCT_ID-data
+aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION" \
+  $( [ "$AWS_REGION" != us-east-1 ] && echo --create-bucket-configuration LocationConstraint=$AWS_REGION )
+aws s3api put-public-access-block --bucket "$BUCKET" \
+  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+echo "hello" | aws s3 cp - "s3://$BUCKET/ok.txt"
+
+# 2. A role your own identity can assume, with a DELIBERATELY BROAD policy first
+MYARN=$(aws sts get-caller-identity --query Arn --output text)
+cat > /tmp/trust.json <<EOF
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow",
+  "Principal":{"AWS":"arn:aws:iam::$ACCT_ID:root"},"Action":"sts:AssumeRole"}]}
+EOF
+aws iam create-role --role-name app-reader --assume-role-policy-document file:///tmp/trust.json
+cat > /tmp/broad.json <<EOF
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:*","Resource":"*"}]}
+EOF
+aws iam put-role-policy --role-name app-reader --policy-name broad --policy-document file:///tmp/broad.json
+```
+**GUI equivalent:** Console → **IAM → Roles → Create role → Custom trust policy**
+(paste trust.json) → skip permissions → name `app-reader` → then **Add
+permissions → Create inline policy → JSON** (paste broad.json).
 
 ## Part B — Attack / observe: why broad grants hurt
-1. Assume `app-reader` (broad) and show you can read/**write/delete** *any*
-   bucket in the account, not just `lab01-…`:
-   ```bash
-   aws sts assume-role --role-arn <app-reader-arn> --role-session-name t | ...
-   aws s3 ls                       # sees everything
-   aws s3 rb s3://<some-other-bucket> --force   # (don't actually — just note you COULD)
-   ```
-2. Note the two failures: **over-broad action** (`s3:*`) and **over-broad
-   resource** (`*`). That's privilege escalation waiting to happen.
-3. Run `python3 ../../cloud/ciem/aws_least_privilege.py` and see the role flagged.
+```bash
+# Assume the broad role and get short-lived creds
+CREDS=$(aws sts assume-role --role-arn arn:aws:iam::$ACCT_ID:role/app-reader \
+  --role-session-name test --query Credentials --output json)
+export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r .AccessKeyId)
+export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r .SecretAccessKey)
+export AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r .SessionToken)
+
+aws s3 ls                       # BUG: sees EVERY bucket, not just lab01
+aws sts get-caller-identity     # you're now app-reader
+# (Don't actually delete anything — just note s3:* on * means you COULD.)
+
+# Reset back to your admin identity:
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+```
+Two failures: **over-broad action** (`s3:*`) and **over-broad resource** (`*`).
+```bash
+python3 ../../cloud/ciem/aws_least_privilege.py    # flags the role
+```
 
 ## Part C — Harden: least privilege, conditions, boundaries
-1. Rewrite `app-reader` to the minimum:
-   ```json
-   {
-     "Effect": "Allow",
-     "Action": ["s3:GetObject", "s3:ListBucket"],
-     "Resource": [
-       "arn:aws:s3:::lab01-<youracct>-data",
-       "arn:aws:s3:::lab01-<youracct>-data/*"
-     ]
-   }
-   ```
-2. Add **conditions**: require MFA (`aws:MultiFactorAuthPresent`), TLS
-   (`aws:SecureTransport`), and (optionally) a source VPC/IP.
-3. Attach a **permission boundary** so even an admin-ish role can't exceed a cap.
-4. Make credentials **short-lived**: set a small `MaxSessionDuration`; use
-   assume-role, never long-lived keys.
-5. Enforce **MFA to assume** privileged roles.
+```bash
+# 1. Replace the broad policy with least privilege + TLS + MFA conditions
+cat > /tmp/least.json <<EOF
+{"Version":"2012-10-17","Statement":[
+ {"Effect":"Allow","Action":["s3:GetObject","s3:ListBucket"],
+  "Resource":["arn:aws:s3:::$BUCKET","arn:aws:s3:::$BUCKET/*"],
+  "Condition":{"Bool":{"aws:SecureTransport":"true"}}}]}
+EOF
+aws iam put-role-policy --role-name app-reader --policy-name least --policy-document file:///tmp/least.json
+aws iam delete-role-policy --role-name app-reader --policy-name broad
+
+# 2. A permission boundary capping the role to S3-read only, ever
+cat > /tmp/boundary.json <<EOF
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:Get*","s3:List*"],"Resource":"*"}]}
+EOF
+aws iam create-policy --policy-name lab01-boundary --policy-document file:///tmp/boundary.json
+aws iam put-role-permissions-boundary --role-name app-reader \
+  --permissions-boundary arn:aws:iam::$ACCT_ID:policy/lab01-boundary
+
+# 3. Short sessions
+aws iam update-role --role-name app-reader --max-session-duration 3600
+```
+**GUI:** IAM → Roles → `app-reader` → **Permissions** tab (edit inline policy),
+**Permissions boundary** section → **Set boundary**.
 
 ## Part D — Application auth with Cognito
-1. Create a **Cognito User Pool**: strong password policy, **MFA required**,
-   advanced security (risk-based) on, hosted UI.
-2. Create an app client (no client secret for SPA; **PKCE** for the auth-code flow).
-3. Get tokens and inspect them:
-   ```bash
-   python3 ../../appsec/crypto/jwt_inspect.py <id_or_access_token>
-   ```
-   Confirm: correct `iss`/`aud`, short `exp`, `alg` is RS256 (not `none`),
-   scopes/groups present.
-4. Map a Cognito **group** → an IAM role (identity pool) so app users get
-   least-privilege AWS access by group — the app-layer version of Lab 01's IAM work.
+```bash
+# User pool with MFA required + strong password policy
+POOL_ID=$(aws cognito-idp create-user-pool --pool-name lab01-pool \
+  --mfa-configuration ON \
+  --auto-verified-attributes email \
+  --policies '{"PasswordPolicy":{"MinimumLength":12,"RequireUppercase":true,"RequireNumbers":true,"RequireSymbols":true}}' \
+  --query 'UserPool.Id' --output text)
+# App client for a SPA: no secret, SRP + refresh
+CLIENT_ID=$(aws cognito-idp create-user-pool-client --user-pool-id "$POOL_ID" \
+  --client-name spa --no-generate-secret \
+  --explicit-auth-flows ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH \
+  --query 'UserPoolClient.ClientId' --output text)
+echo "Pool=$POOL_ID Client=$CLIENT_ID"
+```
+**GUI:** Console → **Cognito → Create user pool** → Cognito user pool →
+sign-in = email → **MFA = Required** → password policy → app client = **Public
+client** (no secret) with **ALLOW_USER_SRP_AUTH** → create.
+
+Inspect a token you obtain from the hosted UI / SRP sign-in:
+```bash
+python3 ../../appsec/crypto/jwt_inspect.py <id_or_access_token>
+# Confirm: iss/aud correct, short exp, alg=RS256 (not "none"), groups/scopes present
+```
 
 ---
 
 ## Verify
 ```bash
-# Least privilege now holds: broad access is gone
-python3 ../../cloud/ciem/aws_least_privilege.py
-python3 ../../cloud/aws/iam_audit.py
-
-# Prove the hardened role CAN read lab01 data and CANNOT touch other buckets
-aws s3 ls s3://lab01-<youracct>-data      # works
-aws s3 ls                                  # denied / empty beyond scope
-
-# Token hygiene
-python3 ../../appsec/crypto/jwt_inspect.py <token>
+python3 ../../cloud/ciem/aws_least_privilege.py     # broad access gone
+# Prove scope: assume the role again and confirm it can read lab01 but not list all
+CREDS=$(aws sts assume-role --role-arn arn:aws:iam::$ACCT_ID:role/app-reader --role-session-name v --query Credentials --output json)
+AWS_ACCESS_KEY_ID=$(echo $CREDS|jq -r .AccessKeyId) AWS_SECRET_ACCESS_KEY=$(echo $CREDS|jq -r .SecretAccessKey) AWS_SESSION_TOKEN=$(echo $CREDS|jq -r .SessionToken) aws s3 ls "s3://$BUCKET"    # works
+AWS_ACCESS_KEY_ID=$(echo $CREDS|jq -r .AccessKeyId) AWS_SECRET_ACCESS_KEY=$(echo $CREDS|jq -r .SecretAccessKey) AWS_SESSION_TOKEN=$(echo $CREDS|jq -r .SessionToken) aws s3 ls    # AccessDenied ✅
 ```
-Success = the role does exactly its job and nothing more; MFA/TLS conditions
-enforced; Cognito requires MFA and issues short-lived, correctly-scoped tokens.
 
 ## Cleanup
-Delete the roles, the bucket, and the Cognito user pool/app client.
+```bash
+aws iam delete-role-policy --role-name app-reader --policy-name least
+aws iam delete-role-permissions-boundary --role-name app-reader
+aws iam delete-role --role-name app-reader
+aws iam delete-policy --policy-arn arn:aws:iam::$ACCT_ID:policy/lab01-boundary
+aws cognito-idp delete-user-pool --user-pool-id "$POOL_ID"
+aws s3 rb "s3://$BUCKET" --force
+```
 
 ## Portfolio artifact
-- **Before/after IAM policy** (broad → least-privilege) with a paragraph on each
-  change (action scope, resource scope, conditions, boundary).
-- A short note on **authN vs authZ**: Cognito proved *who*, IAM decided *what*.
+- **Before/after IAM policy** (broad → least-privilege) with a note on each change
+  (action scope, resource scope, conditions, boundary).
+- A short **authN vs authZ** note: Cognito proved *who*, IAM decided *what*.
 - Screenshot of `aws_least_privilege.py` flagging then clearing the role.
 
 ## Stretch goals
-- Add an **attribute-based access control (ABAC)** policy using tags
-  (`aws:PrincipalTag` / `aws:ResourceTag`) — one policy, many teams.
-- Write the hardened role + boundary as Terraform; run `checkov` on it.
-- Add an **SCP/RCP data-perimeter** (`../../iam/policies/aws-rcp-data-perimeter.json`)
-  so only your identities/networks can reach the bucket — then re-test the attack.
+- Add **ABAC** with `aws:PrincipalTag`/`aws:ResourceTag`.
+- Write the hardened role + boundary as Terraform; run `checkov`.
+- Add an **RCP data perimeter** (`../../iam/policies/aws-rcp-data-perimeter.json`)
+  and re-test the attack.
