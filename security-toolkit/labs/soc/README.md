@@ -16,6 +16,11 @@ Entra, firewall/EDR, ticketing).
 | 02 | [SOC alert triage](02-soc-alert-triage.md) | EDR/DNS/firewall alert → prioritized action | `../../soc/ir/triage.py`, `../../soc/network/firewall_rule_audit.py` |
 | 03 | [M365 / Entra hardening](03-m365-entra-hardening.md) | tenant security posture | `../../soc/m365/graph_security_audit.py` |
 
+> **Each lab is copy-paste runnable:** it drives the toolkit's own tools with
+> real sample inputs (`soc/ir/triage.py`, `soc/network/firewall_rule_audit.py`,
+> `soc/m365/graph_security_audit.py`, `soc/incident/incident_report.py`), plus
+> Entra/M365 portal steps for the tenant hardening.
+
 ## How it fits the toolkit
 - **Detection sources** → `../../cloud/detection/`, `../aws|azure|gcp/06` capstones.
 - **Vulnerability / remediation SLA** → `../../vulnmgmt/`.
