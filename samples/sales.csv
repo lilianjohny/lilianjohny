@@ -1,0 +1,9 @@
+Date,Region,Product,Units,Revenue
+2026-09-01,North,Laptop,3,3600
+2026-09-01,South,Phone,5,2500
+2026-09-02,North,Phone,2,1000
+2026-09-02,East,Laptop,1,1200
+2026-09-03,South,Laptop,2,2400
+2026-09-03,East,Tablet,4,1600
+2026-09-03,East,Tablet,4,1600
+2026-09-04,North,Tablet,,
