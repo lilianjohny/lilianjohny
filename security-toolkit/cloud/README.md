@@ -87,3 +87,34 @@ bash cloud/prowler_scan.sh aws --severity critical,high --output-dir out/aws
 
 The lightweight per-provider scripts remain as a **zero-dependency fallback**
 for environments where you can't install the full scanner set.
+
+## Cloud security — CNAPP pillars
+
+Beyond posture scanning (CSPM), this directory covers the rest of the
+cloud-native application protection (CNAPP) model:
+
+| Pillar | What / where |
+|--------|--------------|
+| **CSPM** — posture & misconfig | `prowler_scan.sh`, `aws/`, `azure/`, `gcp/`, `iac/` |
+| **KSPM** — Kubernetes posture | `kubernetes/kube_security_scan.sh` (kube-bench CIS + trivy/kubescape + built-in checks) |
+| **Admission / runtime guardrails** | `kubernetes/policies/kyverno-pod-security.yaml` (restricted Pod Security) |
+| **CIEM** — identity & entitlements | `ciem/aws_least_privilege.py` (Access Analyzer, admin/wildcard principals, unused access) |
+| **CDR** — detection & response | `detection/aws_detection_coverage.py` (CloudTrail/GuardDuty/Security Hub/Config), `detection/cloudtrail_hunt.md` (multi-cloud hunt queries → MITRE ATT&CK) |
+| **Compliance** — CIS benchmarks | `benchmarks/cis_benchmark.sh` (Prowler CIS frameworks per cloud) |
+
+```bash
+# Kubernetes posture (CIS + cluster scan)
+bash cloud/kubernetes/kube_security_scan.sh
+
+# Enforce Pod Security guardrails (start in Audit)
+kubectl apply -f cloud/kubernetes/policies/kyverno-pod-security.yaml
+
+# Identity least-privilege review (AWS)
+python cloud/ciem/aws_least_privilege.py --idle-days 90
+
+# Are detection & logging actually on?
+python cloud/detection/aws_detection_coverage.py
+
+# CIS Benchmark assessment
+bash cloud/benchmarks/cis_benchmark.sh aws --version 3.0
+```
