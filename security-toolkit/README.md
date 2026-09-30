@@ -20,6 +20,7 @@ Organized by discipline so you can reach for the right tool quickly.
 | `crypto/`      | Hashing, password-strength, and crypto hygiene utilities       |
 | `cloud/`       | DevSecOps: AWS/Azure/GCP posture audits, IaC scan, CI/CD gate  |
 | `dod/`         | DoD DevSecOps software factory: mandatory control gates, SBOM/SWFT, cATO evidence, Sigstore signing |
+| `appsec/`      | Application security: OpenAPI/API audit, CORS/cookie/JWT, SAST rules, DAST, ASVS, threat model |
 | `devsecops/`   | Cross-cutting shift-left tools (e.g. secret scanning)          |
 | `lib/`         | Shared helpers used across the toolkit                         |
 

@@ -1,0 +1,88 @@
+# Application Security CI pipeline (template).
+# SAST + SCA + secrets on every PR/push, uploading SARIF to code scanning.
+# DAST runs on a schedule or manual dispatch against a deployed test target
+# (set APPSEC_DAST_TARGET as a repo/environment variable).
+#
+# Copy to .github/workflows/ at the repo root to activate.
+
+name: appsec
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: "41 4 * * 1"   # weekly DAST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: appsec-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TOOLKIT: security-toolkit
+
+jobs:
+  sast:
+    name: SAST (Semgrep + custom app rules)
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          semgrep scan --config p/owasp-top-ten --config p/security-audit \
+            --config $TOOLKIT/appsec/sast/rules/custom-appsec.yml \
+            --sarif --output appsec-sast.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with: { sarif_file: appsec-sast.sarif, category: appsec-sast }
+
+  sca:
+    name: SCA (Syft + Grype)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Syft + Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh  | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+      - name: SBOM + SCA
+        run: |
+          bash $TOOLKIT/dod/scripts/generate_sbom.sh --path . --out sbom --name ${{ github.event.repository.name }}
+          grype sbom:sbom/${{ github.event.repository.name }}.cdx.json --fail-on high -o sarif > appsec-sca.sarif || true
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with: { sarif_file: appsec-sca.sarif, category: appsec-sca }
+
+  secrets:
+    name: Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  dast:
+    name: DAST (OWASP ZAP baseline)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ZAP baseline scan
+        run: |
+          if [ -z "${APPSEC_DAST_TARGET}" ]; then
+            echo "Set APPSEC_DAST_TARGET (an authorized test URL) to enable DAST."; exit 0
+          fi
+          bash $TOOLKIT/appsec/dast/zap_scan.sh --target "$APPSEC_DAST_TARGET" --out zap-report.html
+        env:
+          APPSEC_DAST_TARGET: ${{ vars.APPSEC_DAST_TARGET }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: zap-report, path: zap-report.html }
