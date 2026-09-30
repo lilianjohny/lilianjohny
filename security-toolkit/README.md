@@ -20,6 +20,7 @@ Organized by discipline so you can reach for the right tool quickly.
 | `crypto/`      | Hashing, password-strength, and crypto hygiene utilities       |
 | `cloud/`       | DevSecOps: AWS/Azure/GCP posture audits, IaC scan, CI/CD gate  |
 | `dod/`         | DoD DevSecOps software factory: mandatory control gates, SBOM/SWFT, cATO evidence, Sigstore signing |
+| `iam/`         | Secure IAM architecture + Terraform baseline (AWS/Azure/GCP + multi-cloud federation, 2026 zero-trust) |
 | `appsec/`      | Application security: OpenAPI/API audit, CORS/cookie/JWT, SAST rules, DAST, ASVS, threat model |
 | `devsecops/`   | Cross-cutting shift-left tools (e.g. secret scanning)          |
 | `grc/`         | Governance, Risk & Compliance: risk register, multi-framework crosswalk, policy governance, GRC dashboard |
