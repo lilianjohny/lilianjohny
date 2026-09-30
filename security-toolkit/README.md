@@ -18,7 +18,12 @@ Organized by discipline so you can reach for the right tool quickly.
 | `monitoring/`  | Log watching, file-integrity monitoring, detection helpers     |
 | `incident/`    | Incident-response triage & IOC hunting                         |
 | `crypto/`      | Hashing, password-strength, and crypto hygiene utilities       |
+| `cloud/`       | DevSecOps: AWS/Azure/GCP posture audits, IaC scan, CI/CD gate  |
+| `devsecops/`   | Cross-cutting shift-left tools (e.g. secret scanning)          |
 | `lib/`         | Shared helpers used across the toolkit                         |
+
+See `cloud/README.md` for the cloud DevSecOps suite (per-provider audits,
+`iac/iac_scan.sh`, and `cicd/pipeline_gate.sh`).
 
 ## Requirements
 
