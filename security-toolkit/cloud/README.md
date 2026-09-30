@@ -96,6 +96,7 @@ cloud-native application protection (CNAPP) model:
 | Pillar | What / where |
 |--------|--------------|
 | **CSPM** — posture & misconfig | `prowler_scan.sh`, `aws/`, `azure/`, `gcp/`, `iac/` |
+| **Multi-cloud (unified)** | `multicloud/` — scan all clouds, normalize to one schema, single cross-cloud posture report |
 | **KSPM** — Kubernetes posture | `kubernetes/kube_security_scan.sh` (kube-bench CIS + trivy/kubescape + built-in checks) |
 | **Admission / runtime guardrails** | `kubernetes/policies/kyverno-pod-security.yaml` (restricted Pod Security) |
 | **CIEM** — identity & entitlements | `ciem/aws_least_privilege.py` (Access Analyzer, admin/wildcard principals, unused access) |

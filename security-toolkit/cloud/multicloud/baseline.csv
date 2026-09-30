@@ -1,0 +1,13 @@
+control_id,category,control,aws_check,azure_check,gcp_check
+MC-IAM-01,Identity,"MFA enforced for all users/privileged access","IAM users w/o MFA; root MFA","Entra ID MFA / Conditional Access","2SV enforced on org"
+MC-IAM-02,Identity,"No wildcard / admin over-permissioning","IAM policies Action:* Resource:*","Owner role sprawl","Primitive roles (owner/editor)"
+MC-IAM-03,Identity,"Access keys / SA keys rotated & minimal","Access keys > 90d / unused","Service principal creds","User-managed SA keys"
+MC-NET-01,Network,"No sensitive ports open to 0.0.0.0/0","Security groups open to internet","NSG rules open to internet","Firewall rules 0.0.0.0/0"
+MC-NET-02,Network,"No unintended public endpoints","Public EC2/ELB/RDS","Public IPs / app gateways","External IPs / public LB"
+MC-DATA-01,Data,"Object storage not public","S3 public buckets/ACLs","Storage blob public access","GCS public buckets"
+MC-DATA-02,Data,"Encryption at rest enabled","S3/EBS/RDS encryption","Storage/disk encryption","CMEK / default encryption"
+MC-DATA-03,Data,"Encryption in transit enforced","TLS / HTTPS-only, ALB policies","Storage HTTPS-only, min TLS","Load balancer TLS policies"
+MC-LOG-01,Logging,"Audit logging enabled & central","CloudTrail multi-region","Activity Log / Diagnostic settings","Cloud Audit Logs"
+MC-LOG-02,Logging,"Threat detection enabled","GuardDuty + Security Hub","Defender for Cloud","Security Command Center"
+MC-CFG-01,Config,"Config/compliance recording on","AWS Config recorder","Azure Policy / resource graph","Asset inventory / SHA"
+MC-CFG-02,Config,"Secrets managed (no plaintext)","Secrets Manager / no hardcoded","Key Vault","Secret Manager"
