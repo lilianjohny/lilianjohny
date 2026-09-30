@@ -41,6 +41,12 @@ in order — each builds on the last — or jump to the gap you're targeting.
 | 04 | [Multi-tenant isolation](04-multi-tenant-isolation.md) | tenant isolation models, IAM/network/data boundaries | 2–3 h | ~$0–1 |
 | 05 | [Network segmentation](05-network-segmentation.md) | VPC design, SGs, private access, egress control | 2–3 h | ~$1–2 (NAT/endpoints) |
 | 06 | [Detection & response capstone](06-detection-and-response-capstone.md) | GuardDuty, CloudTrail, hunting, automated response | 3–4 h | ~$1–3 |
+| 07 | [CloudWatch observability & response](07-cloudwatch-observability.md) | CloudWatch agent, alarms, dashboards, EventBridge→Lambda→SNS | 2–3 h | ~$0–1 |
+| 08 | [Disaster recovery & RTO/RPO](08-disaster-recovery.md) | AWS Backup, cross-region, Elastic DR, DR exercise | 3–4 h | ~$1–3 |
+| 09 | [Windows, AD, DISA STIG & RMF](09-windows-ad-stig-rmf.md) | Windows Server, AD/GPO/DNS/IIS, PKI/CAC, STIG, RMF evidence | 3–4 h | ~$1–2 |
+
+> Labs 07–09 target the **KBR Cloud Engineer (AWS GovCloud)** profile — see
+> [`../../job-tracks/kbr-cloud-engineer.md`](../../job-tracks/kbr-cloud-engineer.md).
 
 ## Tooling you'll use
 - **AWS CLI v2** (`aws configure sso` — never long-lived root/user keys).

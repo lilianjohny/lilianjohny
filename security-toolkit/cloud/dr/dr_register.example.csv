@@ -1,0 +1,6 @@
+system,tier,rto_hours,rpo_hours,backup_frequency_hours,cross_region,last_dr_test_days
+AvPLM-core,mission,4,1,1,yes,45
+AvPLM-web,mission,8,4,6,yes,45
+AvPLM-reporting,standard,24,24,24,no,200
+LegacyFileShare,standard,48,24,48,no,400
+IdentityBroker,critical,2,1,1,no,30

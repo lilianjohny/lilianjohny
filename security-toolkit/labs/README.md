@@ -17,6 +17,8 @@ with the tools in this toolkit.
 | [`azure/`](azure/) | ✅ available | Azure equivalents (Entra, AKS, Azure Policy, Sentinel) |
 | [`gcp/`](gcp/) | ✅ available | GCP equivalents (IAM/WIF, GKE, Org Policy, SCC) |
 | [`multicloud/`](multicloud/) | ✅ available | Securing all three as one system (do after the per-cloud tracks) |
+| [`onprem/`](onprem/) | ✅ available | On-prem & datacenter (construction→multi-tenant, bare-metal/firmware, secrets, sensitive-data) |
+| [`soc/`](soc/) | ✅ available | SOC & incident response (IR lifecycle, alert triage, M365/Entra hardening) |
 
 Each per-cloud track mirrors the same 7 labs (00–06), so you learn the concept
 once and map it across clouds. The `multicloud/` track then unifies them:

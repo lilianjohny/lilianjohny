@@ -1,0 +1,15 @@
+{
+  "users_total": 240,
+  "users_without_mfa": 12,
+  "global_admins": 7,
+  "legacy_auth_enabled": true,
+  "security_defaults_enabled": false,
+  "ca_policies": [
+    {"name": "Block legacy auth", "state": "enabled"},
+    {"name": "Require MFA for admins", "state": "enabled"},
+    {"name": "Require compliant device", "state": "reportOnly"}
+  ],
+  "guest_users": 18,
+  "stale_users_90d": 9,
+  "shared_mailboxes_signin_enabled": true
+}
