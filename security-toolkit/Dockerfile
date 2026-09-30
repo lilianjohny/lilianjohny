@@ -46,5 +46,9 @@ COPY . /toolkit
 RUN useradd -m scanner && chown -R scanner /toolkit
 USER scanner
 
+# Liveness: the image's core scanner must be functional.
+HEALTHCHECK --interval=1m --timeout=10s --retries=3 \
+  CMD trivy version >/dev/null 2>&1 || exit 1
+
 ENTRYPOINT ["bash"]
 CMD ["-lc", "cloud/cicd/pipeline_gate.sh --path /src --severity CRITICAL,HIGH"]

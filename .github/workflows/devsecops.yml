@@ -38,22 +38,21 @@ jobs:
           fetch-depth: 0        # gitleaks needs full history
       - uses: gitleaks/gitleaks-action@v2
         env:
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
 
   sca:
     name: Dependencies / SCA (Trivy)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Trivy
+        run: curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          scan-type: fs
-          scanners: vuln,license
-          severity: CRITICAL,HIGH
-          format: sarif
-          output: sca.sarif
-          exit-code: "0"        # report via SARIF; gate happens in code scanning
+        # Report via SARIF; the blocking gate lives in the 'gate' job.
+        run: |
+          trivy fs --scanners vuln,license --severity CRITICAL,HIGH \
+            --format sarif --output sca.sarif --exit-code 0 .
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always()
