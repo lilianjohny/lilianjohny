@@ -13,9 +13,15 @@ with the tools in this toolkit.
 ## Tracks
 | Track | Status | Focus |
 |-------|--------|-------|
-| [`aws/`](aws/) | ✅ available | AWS security — starts here; maps to the job-description gaps below |
-| `azure/` | planned | Azure equivalents |
-| `gcp/` | planned | GCP equivalents |
+| [`aws/`](aws/) | ✅ available | AWS security — start here; maps to the job-description gaps below |
+| [`azure/`](azure/) | ✅ available | Azure equivalents (Entra, AKS, Azure Policy, Sentinel) |
+| [`gcp/`](gcp/) | ✅ available | GCP equivalents (IAM/WIF, GKE, Org Policy, SCC) |
+| [`multicloud/`](multicloud/) | ✅ available | Securing all three as one system (do after the per-cloud tracks) |
+
+Each per-cloud track mirrors the same 7 labs (00–06), so you learn the concept
+once and map it across clouds. The `multicloud/` track then unifies them:
+federated SSO, keyless CI/CD, single-pane posture, cross-cloud workload identity,
+unified detection, and a Zero Trust capstone.
 
 ## Why these labs (the job-description gaps)
 Built to close the exact skills a role called out. The AWS track targets:
