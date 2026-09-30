@@ -1,0 +1,3 @@
+# Optional deps for the cloud DevSecOps scripts.
+# AWS scripts use boto3; Azure/GCP scripts shell out to the az/gcloud CLIs.
+boto3>=1.34.0

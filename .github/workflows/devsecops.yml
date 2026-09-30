@@ -1,0 +1,124 @@
+# Production DevSecOps pipeline.
+#
+# Runs shift-left security scanning on every PR and push to the default branch,
+# and a weekly scheduled deep scan. Findings are uploaded as SARIF to the
+# GitHub Security tab (Code scanning), and CRITICAL/HIGH findings fail the PR.
+#
+# Cloud CSPM (Prowler) is a separate, opt-in job that runs only when cloud
+# credentials are configured via OIDC — no long-lived secrets required.
+#
+# NOTE: actions are pinned to major tags for readability. For a hardened
+# production setup, pin each `uses:` to a full commit SHA.
+
+name: devsecops
+
+on:
+  pull_request:
+  push:
+    branches: [main, master, "claude/**"]
+  schedule:
+    - cron: "27 6 * * 1"   # weekly, Mondays 06:27 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # required to upload SARIF
+
+concurrency:
+  group: devsecops-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # gitleaks needs full history
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  sca:
+    name: Dependencies / SCA (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Trivy
+        run: curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - name: Trivy filesystem scan
+        # Report via SARIF; the blocking gate lives in the 'gate' job.
+        run: |
+          trivy fs --scanners vuln,license --severity CRITICAL,HIGH \
+            --format sarif --output sca.sarif --exit-code 0 .
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: sca.sarif
+          category: sca
+
+  iac:
+    name: IaC misconfiguration (Checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          output_format: sarif
+          output_file_path: checkov.sarif
+          soft_fail: true       # report; gate via code scanning / branch rules
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov.sarif
+          category: iac
+
+  gate:
+    name: Toolkit gate (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install scanners
+        run: |
+          python -m pip install --quiet checkov
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+      - name: Run DevSecOps gate
+        run: |
+          bash security-toolkit/cloud/cicd/pipeline_gate.sh \
+            --path . --report-dir security-reports --severity CRITICAL,HIGH
+
+  # ----------------------------------------------------------------------
+  # OPT-IN cloud posture scan. Enable by configuring OIDC federation and
+  # uncommenting the provider block(s). No static cloud keys are stored.
+  # ----------------------------------------------------------------------
+  cloud-cspm:
+    name: Cloud CSPM (Prowler)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write          # for cloud OIDC
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      # --- AWS via OIDC (uncomment + set role-to-assume) ---
+      # - uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/prowler-readonly
+      #     aws-region: us-east-1
+      - name: Install Prowler
+        run: python -m pip install --quiet prowler
+      - name: Run Prowler (AWS)
+        run: |
+          echo "Configure cloud OIDC above, then run the scan."
+          echo "Example:"
+          echo "  bash security-toolkit/cloud/prowler_scan.sh aws --severity critical,high"
+        continue-on-error: true

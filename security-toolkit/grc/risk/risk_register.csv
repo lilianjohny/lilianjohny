@@ -1,0 +1,9 @@
+risk_id,description,category,likelihood,impact,controls,control_effectiveness,treatment,owner,status,review_date,acceptance_expiry,kri
+R-001,"Ransomware disrupts production services",Operational,4,5,"CTL-06;CTL-08;CTL-15",0.6,mitigate,CISO,open,2026-12-01,,"# endpoints w/o EDR; backup test pass rate"
+R-002,"Cloud misconfiguration exposes customer data",Technical,4,5,"CTL-07;CTL-14;CTL-STIG",0.5,mitigate,Cloud Lead,open,2026-11-15,,"# public buckets; critical CSPM findings"
+R-003,"Insider misuse of privileged access",Insider,3,4,"CTL-04;CTL-05",0.5,mitigate,IAM Lead,open,2026-11-30,,"# admin accounts; access-review overdue"
+R-004,"Third-party (vendor) breach affects our data",Third-party,3,4,"CTL-13",0.4,transfer,Procurement,open,2026-10-31,,"# vendors w/o current SOC 2"
+R-005,"Unpatched critical vulnerability exploited",Technical,4,4,"CTL-07",0.6,mitigate,SecOps,open,2026-11-10,,"# KEV open; criticals past SLA"
+R-006,"Regulatory non-compliance (fines/penalties)",Compliance,2,5,"CTL-01;CTL-10",0.5,mitigate,Compliance,open,2026-12-15,,"# overdue POA&M; failed controls"
+R-007,"Loss of key personnel / knowledge",Strategic,3,3,"",0.0,accept,COO,accepted,2026-12-31,2027-06-30,"# single points of knowledge"
+R-008,"DDoS degrades customer-facing availability",Operational,3,4,"CTL-16",0.5,mitigate,SRE,open,2026-11-20,,"# uptime SLO breaches"

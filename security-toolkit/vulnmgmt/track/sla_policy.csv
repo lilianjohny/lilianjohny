@@ -1,0 +1,5 @@
+priority,description,sla_days
+P1,"Critical risk / KEV (known-exploited) — remediate first",15
+P2,"High risk",30
+P3,"Medium risk",90
+P4,"Low risk",180

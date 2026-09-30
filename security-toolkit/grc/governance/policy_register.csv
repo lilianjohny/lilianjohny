@@ -1,0 +1,11 @@
+policy_id,title,owner,approved_date,review_cadence_months,last_reviewed,status,related_controls
+POL-01,"Information Security Policy",CISO,2025-06-01,12,2025-06-01,approved,CTL-01
+POL-02,"Access Control Policy",IAM Lead,2025-06-15,12,2025-06-15,approved,CTL-03;CTL-04;CTL-05
+POL-03,"Acceptable Use Policy",CISO,2025-01-10,12,2025-01-10,approved,CTL-01
+POL-04,"Incident Response Plan",SecOps Lead,2025-09-01,12,2025-09-01,approved,CTL-08
+POL-05,"Business Continuity / DR Plan",COO,2024-11-01,12,2024-11-01,approved,CTL-15
+POL-06,"Vendor / Third-Party Risk Policy",Procurement,2025-03-01,12,2025-03-01,approved,CTL-13
+POL-07,"Data Classification & Handling Policy",Data Owner,2025-02-01,12,2025-02-01,approved,CTL-17
+POL-08,"Vulnerability Management Policy",SecOps Lead,2025-07-01,12,2025-07-01,approved,CTL-07
+POL-09,"Change Management Policy",Eng Lead,2025-08-01,12,2025-08-01,approved,CTL-09
+POL-10,"Risk Management Policy",Risk Officer,2024-10-01,12,2024-10-01,approved,CTL-10

@@ -1,0 +1,5 @@
+poam_id,weakness,source,severity,status,scheduled_completion,milestones,poc,remediation
+POAM-001,"Unpatched CVE-2026-0001 on web tier",Nessus/ACAS,high,open,2026-03-15,"Patch staging by 2026-03-01; prod by 2026-03-15",soc@org.example,"Apply vendor patch; verify with rescan"
+POAM-002,"S3 bucket without default encryption",Prowler,medium,open,2026-04-30,"Enable SSE-KMS on all buckets",cloud-team@org.example,"Enable default encryption; add SCP guardrail"
+POAM-003,"Console users without MFA",IAM audit,critical,open,2026-02-20,"Enforce MFA org-wide by 2026-02-20",iam@org.example,"Enforce MFA policy; disable non-compliant keys"
+POAM-004,"Legacy TLS 1.0 on internal API",Scan,low,risk accepted,2026-06-30,"Decommission legacy service",appsec@org.example,"Accepted until service EOL 2026-06-30"

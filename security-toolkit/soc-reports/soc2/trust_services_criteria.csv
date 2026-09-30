@@ -1,0 +1,62 @@
+criterion,category,title
+CC1.1,Security (Common Criteria),Demonstrates commitment to integrity and ethical values
+CC1.2,Security (Common Criteria),Board exercises oversight independent of management
+CC1.3,Security (Common Criteria),Management establishes structures reporting lines authorities and responsibilities
+CC1.4,Security (Common Criteria),Demonstrates commitment to attract develop and retain competent individuals
+CC1.5,Security (Common Criteria),Holds individuals accountable for internal control responsibilities
+CC2.1,Security (Common Criteria),Uses relevant quality information to support control functioning
+CC2.2,Security (Common Criteria),Internally communicates information including objectives and responsibilities
+CC2.3,Security (Common Criteria),Communicates with external parties on matters affecting controls
+CC3.1,Security (Common Criteria),Specifies objectives with sufficient clarity to identify and assess risks
+CC3.2,Security (Common Criteria),Identifies and analyzes risks to the achievement of objectives
+CC3.3,Security (Common Criteria),Considers the potential for fraud in assessing risks
+CC3.4,Security (Common Criteria),Identifies and assesses changes that could impact the system of internal control
+CC4.1,Security (Common Criteria),Selects develops and performs ongoing and separate evaluations
+CC4.2,Security (Common Criteria),Evaluates and communicates control deficiencies timely to responsible parties
+CC5.1,Security (Common Criteria),Selects and develops control activities that mitigate risks
+CC5.2,Security (Common Criteria),Selects and develops general control activities over technology
+CC5.3,Security (Common Criteria),Deploys control activities through policies and procedures
+CC6.1,Security (Common Criteria),Implements logical access security software infrastructure and architectures
+CC6.2,Security (Common Criteria),Registers and authorizes new users; removes access when appropriate
+CC6.3,Security (Common Criteria),Manages access based on least privilege and segregation of duties
+CC6.4,Security (Common Criteria),Restricts physical access to facilities and protected assets
+CC6.5,Security (Common Criteria),Discontinues logical/physical protections only after data is no longer needed
+CC6.6,Security (Common Criteria),Implements controls to prevent or detect threats from outside boundaries
+CC6.7,Security (Common Criteria),Restricts the transmission movement and removal of information
+CC6.8,Security (Common Criteria),Implements controls to prevent or detect unauthorized/malicious software
+CC7.1,Security (Common Criteria),Uses detection/monitoring to identify changes and susceptibilities (vulnerabilities)
+CC7.2,Security (Common Criteria),Monitors system components for anomalies indicative of malicious acts
+CC7.3,Security (Common Criteria),Evaluates security events to determine whether they are incidents
+CC7.4,Security (Common Criteria),Responds to identified security incidents with a defined program
+CC7.5,Security (Common Criteria),Recovers from identified security incidents
+CC8.1,Security (Common Criteria),Authorizes designs develops tests approves and implements changes
+CC9.1,Security (Common Criteria),Identifies selects and develops risk mitigation for business disruptions
+CC9.2,Security (Common Criteria),Assesses and manages risks associated with vendors and business partners
+A1.1,Availability,Maintains monitors and evaluates current processing capacity and demand
+A1.2,Availability,Authorizes designs and implements environmental protections backup and recovery
+A1.3,Availability,Tests recovery plan procedures supporting system recovery
+C1.1,Confidentiality,Identifies and maintains confidential information to meet objectives
+C1.2,Confidentiality,Disposes of confidential information to meet objectives
+PI1.1,Processing Integrity,Obtains/uses relevant quality information over processing objectives
+PI1.2,Processing Integrity,Implements policies over inputs to meet processing objectives (completeness/accuracy)
+PI1.3,Processing Integrity,Implements policies over processing to meet objectives
+PI1.4,Processing Integrity,Implements policies to make output available to meet objectives
+PI1.5,Processing Integrity,Stores inputs and outputs completely accurately and timely
+P1.1,Privacy,Provides notice about privacy practices to data subjects
+P2.1,Privacy,Communicates choices available and obtains consent for collection
+P3.1,Privacy,Collects personal information consistent with objectives
+P3.2,Privacy,Obtains explicit consent for sensitive personal information
+P4.1,Privacy,Limits use of personal information to identified purposes
+P4.2,Privacy,Retains personal information consistent with objectives
+P4.3,Privacy,Disposes of personal information to meet objectives
+P5.1,Privacy,Grants data subjects access to their personal information
+P5.2,Privacy,Corrects amends or appends personal information on request
+P6.1,Privacy,Discloses personal information only with consent
+P6.2,Privacy,Creates and retains a record of authorized disclosures
+P6.3,Privacy,Creates and retains a record of detected/reported unauthorized disclosures
+P6.4,Privacy,Obtains commitments from third parties to protect personal information
+P6.5,Privacy,Obtains commitments that third parties report unauthorized disclosures
+P6.6,Privacy,Provides notice of breaches and incidents to affected parties
+P6.7,Privacy,Provides accounting of personal information held on request
+P7.1,Privacy,Collects and maintains accurate complete and relevant personal information
+P8.1,Privacy,Implements a process for handling privacy inquiries complaints and disputes
