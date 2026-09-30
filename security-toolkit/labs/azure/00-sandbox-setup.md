@@ -6,71 +6,105 @@ baseline · Conditional Access · PIM · activity/diagnostic logging.
 
 ## Objective
 A safe, isolated Azure sandbox: a non-privileged day-to-day identity, PIM for
-elevation, budget alarms, management-group guardrails, and audit logging — before
-you build anything to attack.
+elevation, budget alarms, management-group guardrails, and audit logging.
 
 ## Est. time / cost
 45–60 min · **~$0**.
 
 ## Prerequisites
-- An Azure **subscription you own** (ideally a fresh one, or a dedicated tenant).
-- Azure CLI (`az version`). FIDO2 key / authenticator for MFA.
+- An Azure **subscription you own**. FIDO2 key / authenticator for MFA.
+- Azure CLI:
+  ```bash
+  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash    # Linux (Debian/Ubuntu)
+  # macOS: brew install azure-cli
+  az version
+  az login                      # device-code / browser; no static secrets
+  export SUB=$(az account show --query id -o tsv)
+  export LOCATION=eastus
+  az account set --subscription "$SUB"
+  ```
 
 ---
 
-## Part A — Harden the tenant/global admin
-1. Ensure **Global Administrator** accounts have **phishing-resistant MFA**.
-2. Create **2 break-glass** cloud-only Global Admin accounts, FIDO2, **excluded
-   from Conditional Access**, alerted on sign-in (see `../../iam/architecture/azure.md`).
-3. You will **not** operate day-to-day as Global Admin.
+## Part A — Harden the tenant/global admin  *(portal)*
+1. **Entra admin center** (https://entra.microsoft.com) → **Users** → confirm
+   **Global Administrator** accounts have **phishing-resistant MFA** registered.
+2. Create **2 break-glass** cloud-only Global Admins, FIDO2, **excluded from
+   Conditional Access** (see `../../iam/architecture/azure.md`); add a sign-in
+   alert. You will not operate day-to-day as Global Admin.
 
 ## Part B — Identity & elevation (Entra + PIM)
-1. Create your day-to-day user with a **least-privilege** role (e.g. Reader at
-   subscription).
-2. Enable **PIM**: make privileged roles (Owner, Contributor, Global Admin)
-   **eligible, not active**; require approval + MFA + justification to activate.
-3. **Conditional Access** baseline (start in **report-only**):
-   - Require MFA for all users; **block legacy authentication**.
-   - Require compliant device for admin (if you have Intune) — else note it.
-4. CLI without secrets: `az login` (interactive/device code); confirm identity:
-   ```bash
-   az account show
-   ```
+```bash
+# Day-to-day user gets least privilege (Reader at subscription)
+MYID=$(az ad signed-in-user show --query id -o tsv)   # or a dedicated lab user's objectId
+az role assignment create --assignee "$MYID" --role "Reader" --scope "/subscriptions/$SUB"
+```
+**Portal — PIM:** Entra admin center → **Identity Governance → Privileged
+Identity Management → Azure resources / Microsoft Entra roles** → make **Owner /
+Contributor / Global Admin** *Eligible* (not active); require **approval + MFA +
+justification** to activate.
+**Portal — Conditional Access (start report-only):** Entra → **Protection →
+Conditional Access → Create policy**: require MFA for all users; a second policy
+to **Block legacy authentication**; set state = **Report-only** first.
 
 ## Part C — Cost guardrails
-1. **Cost Management → Budgets:** a **$5/month** budget with 50/80/100% alerts.
-2. Note cost drivers you'll meet: **AKS load balancers/nodes, Azure Firewall,
-   Bastion, Defender plans** — labs flag them; tear down same-session.
+```bash
+az consumption budget create --budget-name lab-monthly-5 --amount 5 \
+  --category cost --time-grain Monthly \
+  --start-date $(date +%Y-%m-01) --end-date 2030-12-31 \
+  --scope "/subscriptions/$SUB" 2>/dev/null || \
+  echo "If the CLI extension errors, set the budget in Portal → Cost Management → Budgets → Add"
+```
+**Portal:** **Cost Management + Billing → Budgets → Add** → $5 monthly, alert at
+80/100%. Cost drivers to watch: **AKS LBs/nodes, Azure Firewall, Bastion,
+Defender plans**.
 
 ## Part D — Guardrails & logging
-1. **Azure Policy** at **management-group** scope — assign a baseline (region
-   lock, deny public network, require diagnostics). Adapt
-   `../../iam/policies/azure-policy-baseline.md`; assign the **Microsoft cloud
-   security benchmark** initiative for broad coverage.
-2. **Diagnostic settings:** send Entra sign-in/audit + Activity Log to a **Log
-   Analytics workspace** (your evidence trail).
-3. Turn on **Defender for Cloud** (free tier / Foundational CSPM) for posture.
+```bash
+# Log Analytics workspace = your evidence trail
+az monitor log-analytics workspace create -g rg-security -n lab-law -l "$LOCATION" \
+  2>/dev/null || { az group create -n rg-security -l "$LOCATION"; \
+  az monitor log-analytics workspace create -g rg-security -n lab-law -l "$LOCATION"; }
+WSID=$(az monitor log-analytics workspace show -g rg-security -n lab-law --query id -o tsv)
+
+# Send subscription Activity Log to the workspace
+az monitor diagnostic-settings subscription create --name to-law \
+  --location "$LOCATION" --workspace "$WSID" \
+  --logs '[{"category":"Administrative","enabled":true},{"category":"Security","enabled":true}]'
+
+# Assign a baseline Azure Policy initiative (region lock example) at the subscription
+az policy assignment create --name allowed-locations \
+  --policy "e56962a6-4747-49cd-b67b-bf8b01975c4c" \
+  --params "{\"listOfAllowedLocations\":{\"value\":[\"$LOCATION\"]}}" \
+  --scope "/subscriptions/$SUB"
+```
+**Portal:** **Microsoft Defender for Cloud → Environment settings** → turn on
+foundational CSPM. **Policy → Assignments → Assign initiative** → *Microsoft
+cloud security benchmark* at the management group. Adapt
+`../../iam/policies/azure-policy-baseline.md`.
 
 ---
 
 ## Verify
 ```bash
-az account show                       # you're a scoped user, not break-glass GA
-az policy assignment list --query "[].displayName"   # guardrails assigned
-# Toolkit posture (Azure)
-bash ../../cloud/prowler_scan.sh      # (choose Azure) — baseline findings
+az account show                                   # scoped user, not break-glass GA
+az policy assignment list --query "[].displayName" -o tsv
+bash ../../cloud/prowler_scan.sh                  # choose Azure — baseline findings
 ```
-Success = GA has MFA + break-glass exists, you operate least-privilege with PIM,
-budget alerts set, Azure Policy assigned, logs flowing, Defender on.
+Success = GA has MFA + break-glass exists, PIM gates elevation, budget alerts,
+Azure Policy assigned, logs flowing to the workspace, Defender on.
 
 ## Cleanup
-Keep this foundation for later labs.
+Keep this foundation for later labs. To remove just this lab's guardrail:
+```bash
+az policy assignment delete --name allowed-locations --scope "/subscriptions/$SUB"
+```
 
 ## Portfolio artifact
-- A "secure Azure landing zone (lite)" writeup + screenshots of PIM config,
-  Conditional Access (report-only), budget, and the policy assignment.
+- A "secure Azure landing zone (lite)" writeup + screenshots of PIM, Conditional
+  Access (report-only), the budget, and the policy assignment.
 
 ## Stretch goals
-- Enable **Microsoft Sentinel** on the workspace now (used in Lab 06).
-- Stand up a second subscription under the management group — preview Lab 04.
-- Codify the policy assignment + diagnostic settings as **Bicep/Terraform**.
+- Enable **Microsoft Sentinel** on `lab-law` now (used in Lab 06).
+- Add a second subscription under a management group (preview Lab 04).
+- Codify the policy + diagnostic settings as **Bicep/Terraform**.

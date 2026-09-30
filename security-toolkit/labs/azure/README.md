@@ -43,6 +43,10 @@ map them across clouds. Do them in order, or jump to a specific gap.
 | 05 | [Network segmentation](05-network-segmentation.md) | vNet, NSGs, Private Link, Azure Firewall, Bastion | 2–3 h | ~$1–3 (Firewall/Bastion) |
 | 06 | [Detection & response capstone](06-detection-and-response-capstone.md) | Defender, Sentinel, KQL hunting, Logic Apps response | 3–4 h | ~$1–3 |
 
+> **Each lab is copy-paste runnable:** every step has the actual `az` CLI
+> commands inline, with the Azure Portal click-path wherever a portal is the
+> natural way to do it. Run `az login` and set `SUB`, `LOCATION` from Lab 00 first.
+
 ## Tooling you'll use
 - **Azure CLI** (`az login` — no static secrets; use your Entra user / managed identity).
 - **This toolkit** to verify: `../../cloud/azure/*.sh`, `../../cloud/prowler_scan.sh`
