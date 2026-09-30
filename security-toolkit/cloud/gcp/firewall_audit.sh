@@ -7,6 +7,12 @@
 #   bash firewall_audit.sh [PROJECT_ID]
 set -uo pipefail
 
+# Uses associative arrays → needs bash 4+ (macOS default bash is 3.2).
+if [[ "${BASH_VERSINFO:-0}" -lt 4 ]]; then
+  echo "[FAIL] Needs bash 4+ (found ${BASH_VERSION:-unknown}). On macOS: 'brew install bash' then run with it, or use Linux/WSL/Cloud Shell." >&2
+  exit 3
+fi
+
 command -v gcloud >/dev/null 2>&1 || { echo "[FAIL] 'gcloud' not found."; exit 3; }
 command -v jq >/dev/null 2>&1 || { echo "[FAIL] 'jq' is required."; exit 3; }
 

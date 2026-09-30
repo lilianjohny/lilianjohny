@@ -13,6 +13,11 @@
 #                    [--stig-content <xml> --stig-profile <id>]
 #                    [--severity high] [--evidence cato-evidence] [--allow-skips]
 set -uo pipefail
+# Uses associative arrays → needs bash 4+ (macOS default bash is 3.2).
+if [[ "${BASH_VERSINFO:-0}" -lt 4 ]]; then
+  echo "[FAIL] Needs bash 4+ (found ${BASH_VERSION:-unknown}). On macOS: 'brew install bash' then run with it, or use Linux/WSL/Cloud Shell." >&2
+  exit 3
+fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 PATH_TARGET="."; IMAGE=""; DAST_TARGET=""; STIG_CONTENT=""; STIG_PROFILE=""

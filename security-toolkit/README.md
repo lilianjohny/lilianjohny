@@ -73,6 +73,35 @@ Output is tagged `[OK]/[INFO]/[WARN]/[FAIL]`. Scripts that act on a target
 (scanners, pentest, cloud) are **read-only by default** and only touch systems
 you're authorized to test.
 
+### Where can I run these? (shell / OS support)
+
+The toolkit is **Bash + Python 3**, so it runs anywhere you have a real bash
+shell and Python 3.
+
+| Environment | Python scripts | Bash `.sh` scripts | Notes |
+|-------------|:--------------:|:------------------:|-------|
+| **Linux** | ✅ | ✅ | Native; full support. |
+| **macOS Terminal** | ✅ | ✅* | *macOS default bash is 3.2 — three scripts use bash-4 features and will tell you to `brew install bash`. zsh is fine to launch `bash script.sh`. |
+| **AWS / Azure / GCP Cloud Shell** | ✅ | ✅ | **Best for the cloud scripts** — `aws`/`az`/`gcloud` are pre-installed and already authenticated, Python 3 is present. |
+| **Windows — WSL (Ubuntu)** | ✅ | ✅ | Recommended on Windows; behaves like Linux. |
+| **Windows — Git Bash** | ✅ | ✅ | Works for most; some external CLIs may be unavailable. |
+| **Windows — PowerShell** | ✅ (`python script.py`) | ❌ | PowerShell can't run `.sh`. Use WSL or Git Bash for those; the Python scripts run fine. |
+
+**Visual Studio Code** is an editor, not a runtime — it's a great place to edit
+and run the toolkit, using its **integrated terminal** set to bash / zsh / WSL
+(then run exactly as above). You do **not** need full "Visual Studio". Any plain
+terminal works just as well.
+
+Quick recommendations:
+- **Cloud posture / pentest of cloud** → run in that provider's **Cloud Shell**.
+- **macOS / Linux** → the built-in Terminal is all you need (`brew install bash`
+  on Mac if a script asks for bash 4+).
+- **Windows** → use **WSL** for the full toolkit; PowerShell alone runs only the
+  Python scripts.
+
+Run `bash setup.sh --doctor` in any of these to see which optional CLIs are
+present.
+
 ## Quick start
 
 ```bash
