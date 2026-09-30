@@ -1,0 +1,14 @@
+soc_capability,nist_800_53,dod_reference,public_sector_reference,toolkit_support
+Continuous vulnerability scanning,RA-5,ACAS (DoDI 8531.01),FedRAMP ConMon monthly scans,cloud/prowler_scan.sh; dod/scripts/gate_sca.sh
+Flaw remediation / patch mgmt,SI-2,STIG/ACAS remediation,FedRAMP remediation SLAs,soc/continuous_monitoring/conmon_metrics.py
+Configuration/STIG compliance,CM-6 CM-7,DISA STIG,CIS/agency baselines,dod/scripts/gate_stig.sh; cloud/benchmarks/cis_benchmark.sh
+Audit logging & retention,AU-2 AU-6 AU-11,CJCSM 6510 logging,OMB M-21-31,soc/logging/log_coverage_check.py
+Continuous monitoring (ISCM),CA-7,RMF ConMon / cATO,NIST SP 800-137,dod/evidence/collect_cato_evidence.sh
+Incident handling,IR-4,CJCSM 6510.01B,NIST SP 800-61,soc/incident/ir_playbook.md
+Incident reporting,IR-6,DoDI 8530.03 / JIMS,FISMA 1-hr / CIRCIA 72-hr,soc/incident/incident_report.py
+Threat detection & monitoring,SI-4,CSSP Detect function,CDM / EINSTEIN,cloud/detection/aws_detection_coverage.py
+Identity & access management,AC-2 AC-6 IA-2,PKI/CAC; least privilege,ICAM,cloud/ciem/aws_least_privilege.py
+Boundary protection,SC-7,DoDIN boundary/JRSS,TIC 3.0,cloud/aws/sg_audit.py; cloud/kubernetes
+POA&M management,CA-5,RMF POA&M,FedRAMP POA&M,soc/poam/poam_tracker.py
+Supply chain / SBOM,SR-3 SR-4,SWFT SBOM,EO 14028 SBOM,dod/scripts/generate_sbom.sh
+Contingency / recovery,CP-9 CP-10,COOP,agency CP,incident/triage_collect.sh

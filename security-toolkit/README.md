@@ -23,6 +23,7 @@ Organized by discipline so you can reach for the right tool quickly.
 | `appsec/`      | Application security: OpenAPI/API audit, CORS/cookie/JWT, SAST rules, DAST, ASVS, threat model |
 | `devsecops/`   | Cross-cutting shift-left tools (e.g. secret scanning)          |
 | `pentest/`     | Authorized, phase-ordered penetration testing (cloud + app), scope-gated |
+| `soc/`         | SOC compliance (DoD CSSP + public sector): incident reporting, ConMon, M-21-31 logging, POA&M |
 | `lib/`         | Shared helpers used across the toolkit                         |
 
 See `cloud/README.md` for the cloud DevSecOps suite (per-provider audits,
