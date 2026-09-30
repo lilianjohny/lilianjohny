@@ -1,96 +1,113 @@
 # Lab 03 — GKE Orchestration Security
 
-**Skills practiced:** GKE hardening · Kubernetes RBAC · **GKE Workload Identity**
-(keyless) · Pod Security (PSA) · network policy (default-deny) · Secret Manager
-CSI · **Binary Authorization** admission · Shielded/Confidential nodes · audit
-logging.
+**Skills practiced:** GKE hardening · Kubernetes RBAC · GKE Workload Identity ·
+Pod Security (PSA) · network policy · Secret Manager CSI · Binary Authorization ·
+Shielded nodes · audit logging.
 **Proves (JD):** *"orchestration security."*
 
 ## Objective
-Stand up GKE, exploit the classic orchestration weaknesses (over-broad RBAC,
-metadata/credential theft, flat pod networking, privileged pods), then harden to
-a Zero-Trust posture and verify.
+Exploit the classic orchestration weaknesses on GKE, then harden to Zero-Trust
+and verify.
 
 ## Est. time / cost
-3–4 h · **$$ — real cost** (GKE + LB + Cloud NAT). **One sitting; teardown at
-the end.** Budget alarm from Lab 00. (Autopilot secures many defaults for you —
-Standard is used here to *see* the controls.)
+3–4 h · **$$ real cost** (GKE + LB + Cloud NAT). **One sitting; teardown at end.**
 
 ## Prerequisites
-- Labs 00–02 done (deploy the Lab 02 attested image; enforce Binary Auth).
-- `kubectl`, `helm`, gcloud.
-- Toolkit: `../../cloud/kubernetes/kube_security_scan.sh`,
+- Labs 00–02 done. `kubectl`, `helm`, `gke-gcloud-auth-plugin`:
+  ```bash
+  gcloud components install kubectl gke-gcloud-auth-plugin
+  ```
+- Tools: `../../cloud/kubernetes/kube_security_scan.sh`,
   `../../cloud/kubernetes/policies/kyverno-pod-security.yaml`.
 
 ---
 
 ## Part A — Build
 ```bash
-gcloud container clusters create lab03 --num-nodes=2 --machine-type=e2-small \
-  --workload-pool=<project>.svc.id.goog --enable-shielded-nodes \
-  --enable-network-policy --region=<region>
-gcloud container clusters get-credentials lab03 --region=<region>
+gcloud container clusters create lab03 --region=$REGION --num-nodes=1 \
+  --machine-type=e2-small --enable-shielded-nodes \
+  --workload-pool=$PROJECT.svc.id.goog --enable-network-policy
+gcloud container clusters get-credentials lab03 --region=$REGION
+kubectl create namespace app-ns
+kubectl -n app-ns create deployment app --image=nginx
 ```
-Deploy the Lab 02 image with **deliberately weak** settings first (default KSA,
-no network policy, a privileged pod, Binary Auth in dry-run).
 
 ## Part B — Attack / observe
-1. **Over-broad RBAC:** bind a KSA to `cluster-admin`; exec in and
-   `kubectl get secrets -A` / list everything.
-2. **Metadata/credential theft (no Workload Identity):** from a pod, hit the
-   **metadata server** for the **node SA** token:
-   ```bash
-   kubectl exec <pod> -- curl -s -H "Metadata-Flavor: Google" \
-     http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token
-   ```
-   The pod inherits node-SA permissions (why you need Workload Identity + metadata
-   concealment).
-3. **Flat network:** reach another namespace's pod directly (no network policy).
-4. **Privileged pod:** run `privileged: true` / `hostPath: /` → read host FS.
-5. Scan: `bash ../../cloud/kubernetes/kube_security_scan.sh`.
+```bash
+kubectl create clusterrolebinding pwn --clusterrole=cluster-admin --serviceaccount=app-ns:default
+kubectl auth can-i get secrets -A --as=system:serviceaccount:app-ns:default   # yes = bad
+POD=$(kubectl -n app-ns get pod -l app=app -o jsonpath='{.items[0].metadata.name}')
+# Metadata-server node-SA token theft (no Workload Identity / metadata concealment)
+kubectl -n app-ns exec "$POD" -- sh -c 'apt-get update>/dev/null 2>&1; apt-get install -y curl>/dev/null 2>&1; \
+  curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' | head -c 120
+# Privileged pod → host FS
+kubectl -n app-ns run bad --image=busybox --restart=Never --privileged \
+  --overrides='{"spec":{"containers":[{"name":"bad","image":"busybox","command":["sleep","3600"],"securityContext":{"privileged":true},"volumeMounts":[{"name":"h","mountPath":"/host"}]}],"volumes":[{"name":"h","hostPath":{"path":"/"}}]}}'
+bash ../../cloud/kubernetes/kube_security_scan.sh
+```
 
 ## Part C — Harden (Zero Trust)
-1. **RBAC least privilege:** no `cluster-admin` for apps; namespaced Roles with
-   only needed verbs/resources.
-2. **GKE Workload Identity:** bind the KSA → a least-privilege Google SA; **enable
-   metadata concealment / block the metadata server** so pods can't steal the
-   node SA.
-3. **Pod Security Admission:** enforce **`restricted`** on the namespace
-   (no privileged/hostPath/host ns, non-root, drop caps, read-only rootfs).
-4. **Network policy default-deny**, then allow only needed flows.
-5. **Secrets:** **Secret Manager CSI driver** (via Workload Identity) instead of
-   plain k8s Secrets; enable **application-layer secrets encryption (CMEK)**.
-6. **Binary Authorization enforce:** only **attested** images (Lab 02) admitted.
-7. **Shielded/Confidential nodes**, private cluster (private nodes + authorized
-   networks for the API), **kube audit logs → Cloud Logging**.
+```bash
+kubectl delete clusterrolebinding pwn
+# Namespaced RBAC
+cat <<'EOF' | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {namespace: app-ns, name: app-role}
+rules: [{apiGroups: [""], resources: ["configmaps"], verbs: ["get","list"]}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {namespace: app-ns, name: app-rb}
+subjects: [{kind: ServiceAccount, name: default, namespace: app-ns}]
+roleRef: {kind: Role, name: app-role, apiGroup: rbac.authorization.k8s.io}
+EOF
+# Pod Security Standards
+kubectl label ns app-ns pod-security.kubernetes.io/enforce=restricted --overwrite
+# Default-deny network policy
+cat <<'EOF' | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {namespace: app-ns, name: default-deny}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+EOF
+# GKE Workload Identity: bind a KSA to a least-priv Google SA + block metadata
+gcloud iam service-accounts create gke-app
+kubectl -n app-ns create serviceaccount app-ksa
+gcloud iam service-accounts add-iam-policy-binding gke-app@$PROJECT.iam.gserviceaccount.com \
+  --role roles/iam.workloadIdentityUser \
+  --member "serviceAccount:$PROJECT.svc.id.goog[app-ns/app-ksa]"
+kubectl -n app-ns annotate serviceaccount app-ksa \
+  iam.gke.io/gcp-service-account=gke-app@$PROJECT.iam.gserviceaccount.com
+# (Workload Identity conceals the node metadata SA from pods.)
+# Admission control: Kyverno + Binary Authorization (from Lab 02)
+helm repo add kyverno https://kyverno.github.io/kyverno/ && helm repo update
+helm install kyverno kyverno/kyverno -n kyverno --create-namespace
+kubectl apply -f ../../cloud/kubernetes/policies/kyverno-pod-security.yaml
+gcloud container clusters update lab03 --region=$REGION --binauthz-evaluation-mode=PROJECT_SINGLETON_POLICY_ENFORCE
+```
+**Console:** enable **Binary Authorization** on the cluster; Cloud Audit Logs for
+GKE are on by default → **Logging**.
 
 ## Part D — Verify
 ```bash
-bash ../../cloud/kubernetes/kube_security_scan.sh                # clean
-kubectl auth can-i get secrets -A --as=... ; # no
-kubectl exec <pod> -- curl -s --max-time 3 -H "Metadata-Flavor: Google" \
-  http://metadata.google.internal/.../token || echo "metadata blocked ✅"
-kubectl run bad --image=<unsigned> # rejected by Binary Authorization ✅
-kubectl run priv --image=... --privileged=true  # rejected by PSA ✅
+bash ../../cloud/kubernetes/kube_security_scan.sh
+kubectl auth can-i get secrets -A --as=system:serviceaccount:app-ns:default    # no ✅
+kubectl -n app-ns run bad2 --image=busybox --privileged --restart=Never         # rejected ✅
+kubectl -n app-ns run unsigned --image=docker.io/library/redis --restart=Never  # Binary Auth blocks ✅
 ```
-Success = namespaced RBAC, pod uses Workload Identity (no node-SA theft),
-default-deny networking, `restricted` enforced, unsigned/privileged pods rejected,
-audit logs flowing.
 
 ## Cleanup (do NOT skip — pricey)
 ```bash
-gcloud container clusters delete lab03 --region=<region> -q
-# confirm LB/Cloud NAT/forwarding rules gone; check Budgets.
+gcloud container clusters delete lab03 --region=$REGION --quiet
+gcloud iam service-accounts delete gke-app@$PROJECT.iam.gserviceaccount.com --quiet
 ```
 
 ## Portfolio artifact
-- Threat-model diagram: attacker in a pod → reachable before vs after.
-- Hardened manifests (RBAC, NetworkPolicy, PSA labels, Workload-Identity KSA) +
-  the Binary Authorization policy.
-- `kube_security_scan.sh` before/after.
+- Threat-model diagram (pod attacker before vs after); hardened manifests + the
+  Binary Authorization policy; scan before/after.
 
 ## Stretch goals
-- Compare **GKE Autopilot** — how many of these controls are on by default?
-- Add **GKE runtime security / SCC Container Threat Detection**; trigger an alert
-  (feeds Lab 06).
-- Add a **service mesh** (Anthos Service Mesh/Istio) for mTLS + L7 authz.
+- Compare **GKE Autopilot** (how many controls are default-on?).
+- Add **SCC Container Threat Detection**; trigger an alert (feeds Lab 06).
+- Add **Anthos Service Mesh/Istio** for mTLS + L7 authz.

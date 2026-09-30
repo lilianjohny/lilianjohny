@@ -1,82 +1,90 @@
 # Lab 01 — Authentication & Authorization (GCP)
 
 **Skills practiced:** IAM roles & bindings · service accounts done right ·
-**Workload Identity Federation** (keyless) · **PAM** (JIT) · least privilege &
-IAM Recommender · custom roles · app auth with **Identity Platform**.
+Workload Identity Federation (keyless) · PAM (JIT) · IAM Recommender · custom
+roles · app auth with Identity Platform.
 **Proves (JD):** *"authentication / authorization."*
 
 ## Objective
 Grant the minimum with well-scoped IAM, eliminate exported SA keys via workload
-identity federation, elevate only just-in-time via PAM, and add real application
-auth with proper token handling.
+identity federation, elevate only JIT via PAM, and add real app auth.
 
 ## Est. time / cost
 2–3 h · **~$0**.
 
 ## Prerequisites
-- Lab 00 done. gcloud CLI, `jq`, Python 3.
+- Lab 00 done (`gcloud auth login`, `PROJECT`, `REGION`). `jq`, Python 3.
 
 ---
 
 ## Part A — Build: identities and a workload
-1. A bucket `lab01-<project>-data` (public access prevention on).
-2. A **service account** `app-sa`, given a **deliberately broad** role first:
-   **`roles/editor` at the project** (a primitive role — the anti-pattern).
-3. A **Workload Identity Federation** pool trusting GitHub OIDC (reuse
-   `../../iam/terraform/gcp/main.tf`) — keyless CI.
+```bash
+BUCKET=lab01-$PROJECT-data
+gcloud storage buckets create gs://$BUCKET --location=$REGION --uniform-bucket-level-access --public-access-prevention
+echo "ok" | gcloud storage cp - gs://$BUCKET/ok.txt
+# A service account, given a DELIBERATELY BROAD primitive role first (anti-pattern)
+gcloud iam service-accounts create app-sa --display-name "lab01 app"
+SA=app-sa@$PROJECT.iam.gserviceaccount.com
+gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:$SA" --role="roles/editor"
+```
 
 ## Part B — Attack / observe
-1. Impersonate `app-sa` and show `roles/editor` lets it modify **any** resource
-   in the project, far beyond the bucket:
-   ```bash
-   gcloud storage buckets list          # sees/edits everything
-   gcloud projects get-iam-policy <p>
-   ```
-2. **Exported key risk:** create an SA key (if org policy allowed it) and note a
-   long-lived JSON key is a credential that never expires — exactly what Lab 00's
-   `disableServiceAccountKeyCreation` prevents.
-3. Failures: **primitive role** (`editor`) + **project scope**. Run toolkit GCP
-   IAM checks (`bash ../../cloud/gcp/*.sh`).
+```bash
+# Editor lets app-sa modify anything in the project, far beyond the bucket
+gcloud projects get-iam-policy "$PROJECT" --flatten="bindings[].members" \
+  --filter="bindings.members:$SA" --format="table(bindings.role)"
+# Exported-key risk (org policy from Lab 00 should BLOCK this):
+gcloud iam service-accounts keys create /tmp/key.json --iam-account=$SA 2>&1 | head -2
+```
+Failures: primitive role (`editor`) + project scope. Exported keys never expire.
 
 ## Part C — Harden: least privilege + keyless + JIT
-1. Replace `roles/editor` with the **minimum predefined role at bucket scope**:
-   `roles/storage.objectViewer` on **that bucket only** (a resource-level binding).
-2. If none fits, create a **custom role** with just the needed permissions — no
-   `*` / primitive roles.
-3. **Keyless workloads:** no SA keys anywhere — CI uses **Workload Identity
-   Federation**; GKE uses **Workload Identity** (Lab 03). Org policy blocks key
-   creation.
-4. **PAM:** grant privileged roles **just-in-time** (request → approval →
-   time-boxed) instead of standing grants.
-5. **IAM Conditions:** add conditions (e.g., request time, resource tag) to
-   bindings for context-bound access.
+```bash
+# 1. Minimum predefined role at bucket scope
+gcloud projects remove-iam-policy-binding "$PROJECT" --member="serviceAccount:$SA" --role="roles/editor"
+gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
+  --member="serviceAccount:$SA" --role="roles/storage.objectViewer"
+
+# 2. (If none fits) a custom role with just the needed permissions
+gcloud iam roles create lab01BlobViewer --project="$PROJECT" \
+  --title="lab01 blob viewer" --permissions=storage.objects.get,storage.objects.list
+
+# 3. Keyless CI via Workload Identity Federation (reuse the module)
+#    See ../../iam/terraform/gcp/main.tf — pool + provider pinned to your repo.
+
+# 4. PAM (JIT) for privileged roles instead of standing grants
+gcloud pam entitlements create lab01-admin-jit --location=global \
+  --entitlement-file=/dev/stdin <<'EOF' 2>/dev/null || echo "Console: IAM & Admin → Privileged Access Manager → Create entitlement"
+{"maxRequestDuration":"3600s","privilegedAccess":{"gcpIamAccess":{"roleBindings":[{"role":"roles/storage.admin"}]}},"requesterJustificationConfig":{"unstructured":{}}}
+EOF
+```
+**Console:** IAM & Admin → **Roles → Create role** (custom); **Privileged Access
+Manager → Create entitlement** (approval + time-box).
 
 ## Part D — Application auth with Identity Platform
-1. Enable **Identity Platform**; configure sign-in with **MFA required**,
-   password/passkey policy.
-2. App uses OIDC (auth code + PKCE for SPA). Acquire a token and inspect:
-   ```bash
-   python3 ../../appsec/crypto/jwt_inspect.py <id_or_access_token>
-   ```
-   Confirm `iss`/`aud`, short `exp`, `alg` RS256 (not `none`), claims/roles.
-3. Map a token claim → an IAM binding (via workforce/identity pool) so app users
-   get least-privilege GCP access.
+**Console:** **Identity Platform → Enable** → add a provider (email/OIDC) → set
+**MFA required** + password/passkey policy. App uses OIDC (auth code + PKCE).
+```bash
+python3 ../../appsec/crypto/jwt_inspect.py <id_or_access_token>
+# Confirm iss/aud, short exp, alg=RS256 (not "none"), claims/roles.
+```
 
 ---
 
 ## Verify
 ```bash
-gcloud projects get-iam-policy <p> --flatten="bindings[].members" \
-  --filter="bindings.members:app-sa"      # scoped to the bucket only
-gcloud storage ls gs://lab01-<project>-data     # works
-gcloud storage ls                                # denied beyond scope
+gcloud projects get-iam-policy "$PROJECT" --flatten="bindings[].members" \
+  --filter="bindings.members:$SA" --format="table(bindings.role)"     # bucket-scoped only
+gcloud storage ls gs://$BUCKET                                        # works (as app-sa)
 python3 ../../appsec/crypto/jwt_inspect.py <token>
 ```
-Success = SA scoped to exactly its job, zero exported keys, PAM gates elevation,
-Identity Platform issues short-lived correctly-scoped tokens.
 
 ## Cleanup
-Delete the bucket, `app-sa`, the WIF pool, and the Identity Platform config.
+```bash
+gcloud iam roles delete lab01BlobViewer --project="$PROJECT" 2>/dev/null
+gcloud iam service-accounts delete "$SA" --quiet
+gcloud storage rm --recursive gs://$BUCKET
+```
 
 ## Portfolio artifact
 - Before/after IAM (editor@project → objectViewer@bucket) with rationale.
@@ -86,5 +94,5 @@ Delete the bucket, `app-sa`, the WIF pool, and the Identity Platform config.
 
 ## Stretch goals
 - ABAC via **IAM Conditions** on resource tags.
-- Write the binding + custom role + WIF pool as Terraform; `checkov` it.
+- Write the binding + custom role + WIF pool as Terraform; `checkov`.
 - Add a **VPC Service Controls** perimeter around the bucket (preview Lab 04).
