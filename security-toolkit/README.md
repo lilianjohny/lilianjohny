@@ -30,6 +30,7 @@ Organized by discipline so you can reach for the right tool quickly.
 | `soc/`         | SOC compliance (DoD CSSP + public sector): incident reporting, ConMon, M-21-31 logging, POA&M |
 | `soc-reports/` | AICPA SOC 1/2/3 readiness: Trust Services Criteria, controls matrix, evidence & gap tracking |
 | `vulnmgmt/`    | Vulnerability management program: normalize/enrich (KEV+EPSS)/dedupe/SLA-track/report |
+| `labs/`        | Hands-on practice labs (build→attack→harden→verify); AWS track: authN/authZ, container, EKS, multi-tenant, segmentation, detection |
 | `lib/`         | Shared helpers used across the toolkit                         |
 
 See `cloud/README.md` for the cloud DevSecOps suite (per-provider audits,
