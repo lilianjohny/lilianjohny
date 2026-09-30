@@ -1,80 +1,82 @@
 # Lab 04 — Multi-Tenant Isolation (GCP)
 
-**Skills practiced:** tenant isolation models (silo/pool/bridge) · IAM-scoped
-tenant boundaries · data isolation (CMEK per tenant, partitioning) ·
-folder/project strategy · **VPC Service Controls** perimeters · noisy-neighbor
-protection · per-request scoping.
+**Skills practiced:** isolation models (silo/pool/bridge) · IAM Conditions tenant
+boundaries · CMEK per tenant · VPC Service Controls · per-request scoping.
 **Proves (JD):** *"securing … deployments … to multi-tenant use."*
 
 ## Objective
-Model a SaaS multi-tenant system and prove **Tenant A can never reach Tenant B's
-data or compute** at identity, data, and network layers — even when malicious.
+Model a pooled SaaS system and prove **Tenant A can never reach Tenant B's data**
+at identity, data, key, and perimeter layers.
 
 ## Est. time / cost
 2–3 h · **~$0–1**.
 
 ## Prerequisites
-- Labs 00–01 done. gcloud CLI, Python 3.
+- Labs 00–01 done. `jq`, Python 3.
 
 ---
 
-## Isolation models (GCP expression)
-| Model | Shared | Isolation | GCP shape |
-|-------|--------|-----------|-----------|
-| **Silo** | nothing | strongest | **project (or folder) per tenant** |
-| **Pool** | everything | weakest, needs care | one project, logical separation |
-| **Bridge** | mix | middle | shared compute, isolated data/keys/perimeter |
-Build **pool** (hardest), prove isolation, then note when to reach for **silo**
-(project-per-tenant under a folder).
-
 ## Part A — Build (pool)
-1. One bucket, prefixes `tenanta/`, `tenantb/`.
-2. One BigQuery dataset (or Firestore) partitioned/labeled by `tenant`.
-3. Two service accounts `sa-tenantA` / `sa-tenantB`, **initially broad**
-   (`roles/storage.admin` on the whole bucket/project).
+```bash
+BUCKET=lab04-$PROJECT
+gcloud storage buckets create gs://$BUCKET --location=$REGION --uniform-bucket-level-access --public-access-prevention
+echo "A" | gcloud storage cp - gs://$BUCKET/tenanta/secret.txt
+echo "B" | gcloud storage cp - gs://$BUCKET/tenantb/secret.txt
+for T in A B; do
+  gcloud iam service-accounts create sa-tenant$T --display-name tenant$T
+  SA=sa-tenant$T@$PROJECT.iam.gserviceaccount.com
+  # Initially broad: storage.admin on the whole bucket
+  gcloud storage buckets add-iam-policy-binding gs://$BUCKET --member="serviceAccount:$SA" --role="roles/storage.admin"
+done
+```
 
 ## Part B — Attack / observe
-1. As `sa-tenantA`, read **Tenant B's** objects — succeeds (the bug):
-   ```bash
-   gcloud storage cp gs://<bucket>/tenantb/secret.txt - --impersonate-service-account=sa-tenantA@...
-   ```
-2. Failure = shared infra + broad IAM ⇒ data crossover.
+```bash
+SAA=sa-tenantA@$PROJECT.iam.gserviceaccount.com
+# As tenant A (impersonation), read tenant B — the bug:
+gcloud storage cat gs://$BUCKET/tenantb/secret.txt --impersonate-service-account=$SAA   # ❌ succeeds
+bash ../../cloud/prowler_scan.sh    # GCP — flags the broad grant
+```
 
 ## Part C — Harden (isolation at every layer)
-1. **IAM/data scoping:** bind each SA to **its own prefix** with **IAM Conditions**
-   (`resource.name.startsWith(".../tenanta/")`), least-privilege role only.
-2. **Per-request scoping (pool at scale):** one app SA + **short-lived
-   downscoped tokens / Credential Access Boundary** limited to the caller's tenant
-   prefix.
-3. **Per-tenant CMEK:** a **KMS key per tenant**; a tenant's SA can use only its
-   own key — cross-tenant data stays unreadable.
-4. **VPC Service Controls:** put tenant data services in a **service perimeter**
-   so stolen creds can't exfiltrate across the boundary.
-5. **Network isolation** (if tenants get compute): per-tenant subnets/firewall, or
-   **silo** (project per tenant) for high-sensitivity customers.
-6. **Noisy neighbor:** per-tenant quotas / Cloud Armor / rate limits.
+```bash
+for T in A B; do
+  low=$(echo $T | tr A-Z a-z)
+  SA=sa-tenant$T@$PROJECT.iam.gserviceaccount.com
+  gcloud storage buckets remove-iam-policy-binding gs://$BUCKET --member="serviceAccount:$SA" --role="roles/storage.admin"
+  # Scope to its own prefix with an IAM Condition
+  gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
+    --member="serviceAccount:$SA" --role="roles/storage.objectViewer" \
+    --condition="title=tenant$T-only,expression=resource.name.startsWith('projects/_/buckets/$BUCKET/objects/tenant$low/')"
+done
+# Per-tenant CMEK (a tenant can use only its own key)
+gcloud kms keyrings create lab04 --location=$REGION 2>/dev/null || true
+gcloud kms keys create tenantB --location=$REGION --keyring=lab04 --purpose=encryption
+```
+**Console:** add a **VPC Service Controls** perimeter around storage services so
+stolen creds can't exfiltrate across the boundary (**Security → VPC Service
+Controls → New perimeter**).
 
 ## Part D — Verify
 ```bash
-gcloud storage ls gs://<bucket>/tenanta/ --impersonate-service-account=sa-tenantA@...  # works
-gcloud storage cp gs://<bucket>/tenantb/secret.txt - --impersonate-service-account=sa-tenantA@...  # denied ✅
-gcloud kms ... decrypt --key=<tenantB-key>   # denied for A ✅
-bash ../../cloud/prowler_scan.sh   # (GCP) posture
+SAA=sa-tenantA@$PROJECT.iam.gserviceaccount.com
+gcloud storage ls gs://$BUCKET/tenanta/ --impersonate-service-account=$SAA         # works ✅
+gcloud storage cat gs://$BUCKET/tenantb/secret.txt --impersonate-service-account=$SAA 2>&1 | grep -i denied  # denied ✅
+bash ../../cloud/prowler_scan.sh    # GCP — re-scan clean on the broad-grant finding
 ```
-Success = every cross-tenant read/write/decrypt denied by IAM Conditions / CMEK /
-VPC-SC, tested from the attacking tenant's SA.
 
 ## Cleanup
-Delete both SAs, bucket, dataset, per-tenant KMS keys, and the VPC-SC perimeter.
+```bash
+for T in A B; do gcloud iam service-accounts delete sa-tenant$T@$PROJECT.iam.gserviceaccount.com --quiet; done
+gcloud kms keys versions destroy 1 --key=tenantB --keyring=lab04 --location=$REGION 2>/dev/null || true
+gcloud storage rm --recursive gs://$BUCKET
+```
 
 ## Portfolio artifact
-- Tenant-isolation decision doc (silo/pool/bridge, when each), controls per layer,
-  and **where VPC-SC adds an exfiltration boundary** IAM alone can't.
-- Before/after cross-tenant test output.
-- Isolation-boundary diagram.
+- Tenant-isolation decision doc (silo/pool/bridge); where **VPC-SC** adds an
+  exfil boundary IAM alone can't; before/after cross-tenant test output.
 
 ## Stretch goals
-- Rebuild as **silo** (project-per-tenant under a folder) and compare
-  isolation/cost/ops.
+- Rebuild as **silo** (project-per-tenant under a folder).
 - Per-tenant **log sink separation** (feeds Lab 06).
 - Bridge two perimeters deliberately and show the controlled path.

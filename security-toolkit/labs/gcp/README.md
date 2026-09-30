@@ -44,6 +44,11 @@ order or jump to a gap.
 | 05 | [Network segmentation](05-network-segmentation.md) | VPC, firewall, Private Google Access, PSC, Cloud NAT, shared VPC | 2–3 h | ~$1–2 |
 | 06 | [Detection & response capstone](06-detection-and-response-capstone.md) | SCC, Cloud Audit Logs, hunting, automated response | 3–4 h | ~$1–3 |
 
+> **Each lab is copy-paste runnable:** every step has the actual `gcloud`
+> commands inline, with the Cloud Console click-path wherever a console is the
+> natural way to do it. Run `gcloud auth login` and set `PROJECT`, `REGION` from
+> Lab 00 first.
+
 ## Tooling you'll use
 - **gcloud CLI** (`gcloud auth login` — short-lived; no exported SA keys).
 - **This toolkit** to verify: `../../cloud/gcp/*.sh`, `../../cloud/prowler_scan.sh`
