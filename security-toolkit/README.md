@@ -22,6 +22,7 @@ Organized by discipline so you can reach for the right tool quickly.
 | `dod/`         | DoD DevSecOps software factory: mandatory control gates, SBOM/SWFT, cATO evidence, Sigstore signing |
 | `appsec/`      | Application security: OpenAPI/API audit, CORS/cookie/JWT, SAST rules, DAST, ASVS, threat model |
 | `devsecops/`   | Cross-cutting shift-left tools (e.g. secret scanning)          |
+| `grc/`         | Governance, Risk & Compliance: risk register, multi-framework crosswalk, policy governance, GRC dashboard |
 | `pentest/`     | Authorized, phase-ordered penetration testing (cloud + app), scope-gated |
 | `soc/`         | SOC compliance (DoD CSSP + public sector): incident reporting, ConMon, M-21-31 logging, POA&M |
 | `soc-reports/` | AICPA SOC 1/2/3 readiness: Trust Services Criteria, controls matrix, evidence & gap tracking |
