@@ -22,6 +22,7 @@ Organized by discipline so you can reach for the right tool quickly.
 | `dod/`         | DoD DevSecOps software factory: mandatory control gates, SBOM/SWFT, cATO evidence, Sigstore signing |
 | `appsec/`      | Application security: OpenAPI/API audit, CORS/cookie/JWT, SAST rules, DAST, ASVS, threat model |
 | `devsecops/`   | Cross-cutting shift-left tools (e.g. secret scanning)          |
+| `pentest/`     | Authorized, phase-ordered penetration testing (cloud + app), scope-gated |
 | `lib/`         | Shared helpers used across the toolkit                         |
 
 See `cloud/README.md` for the cloud DevSecOps suite (per-provider audits,
