@@ -1,0 +1,2 @@
+# Core deps for the security toolkit. Standard-library is used where possible.
+requests>=2.31.0

@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Toolkit outputs — never commit collected evidence or manifests by default
+ir_triage_*/
+*.fim.json
+fim.json
+*.log
