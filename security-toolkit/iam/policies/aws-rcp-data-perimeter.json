@@ -1,0 +1,43 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EnforceOrgIdentityPerimeter",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "s3:*",
+        "sts:AssumeRole",
+        "sts:AssumeRoleWithSAML",
+        "sts:AssumeRoleWithWebIdentity",
+        "kms:*",
+        "sqs:*",
+        "secretsmanager:*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringNotEqualsIfExists": {
+          "aws:PrincipalOrgID": "o-EXAMPLEORGID"
+        },
+        "BoolIfExists": {
+          "aws:PrincipalIsAWSService": "false"
+        },
+        "ArnNotLikeIfExists": {
+          "aws:PrincipalArn": [
+            "arn:aws:iam::*:role/aws-service-role/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "EnforceSecureTransport",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": ["s3:*", "secretsmanager:*", "sqs:*"],
+      "Resource": "*",
+      "Condition": {
+        "BoolIfExists": { "aws:SecureTransport": "false" }
+      }
+    }
+  ]
+}
