@@ -1,79 +1,79 @@
 # Lab 00 — Unified Identity & SSO (Multi-Cloud)
 
 **Skills practiced:** single IdP federation · SSO to AWS + Azure + GCP ·
-phishing-resistant MFA once, everywhere · group-driven entitlements · SCIM
-lifecycle · the offboarding (leaver) test across clouds.
-**Proves (JD):** authN/authZ *at scale* — the hardest identity problem, done right.
+phishing-resistant MFA · group-driven entitlements · SCIM · the leaver test.
+**Proves (JD):** authN/authZ at scale.
 
 ## Objective
-Make **one identity, governed once, work in every cloud.** A person authenticates
-at a single IdP with phishing-resistant MFA; AWS, Azure, and GCP each federate to
-it and map the user's **groups** to entitlements. Disable the user once → access
-gone everywhere.
+One identity, one login + MFA, works in every cloud; disable once → access gone
+everywhere.
 
 ## Est. time / cost
 3–4 h · **~$0**.
 
 ## Prerequisites
-- A central **IdP** (Entra ID or Okta) you control.
-- Sandbox AWS + Azure + GCP (per-cloud Lab 00 done in each).
-- Reference: `../../sso/architecture/multicloud.md`, `../../sso/process/implementation.md`,
-  and the Terraform in `../../sso/terraform/`.
+- A central IdP (Entra ID or Okta) you control; sandbox AWS + Azure + GCP (each
+  Lab 00 done). Reference: `../../sso/`.
 
 ---
 
-## Part A — Harden the IdP (the hub)
+## Part A — Harden the IdP (hub)  *(IdP portal)*
 1. Enforce **phishing-resistant MFA** (FIDO2/passkeys); block legacy auth.
-2. Create a **cloud-agnostic group taxonomy**
-   (`role-<function>-<scope>-<privilege>`), e.g. `role-platform-all-readonly`.
-3. Connect an HR-like source for lifecycle (or simulate joiners/movers/leavers).
+2. Create the group taxonomy, e.g.:
+   ```
+   role-platform-all-readonly
+   role-payments-prod-dba
+   role-breakglass-<cloud>
+   ```
+3. Connect an HR/lifecycle source (or simulate joiners/movers/leavers).
 
 ## Part B — Federate each cloud
-1. **AWS:** IdP → **IAM Identity Center** (SAML + SCIM); map groups → permission
-   sets (`../../sso/terraform/aws/main.tf`).
-2. **Azure:** **Entra** native (or federated from Okta); map groups → RBAC; enable
-   **Conditional Access** (`../../sso/terraform/azure/main.tf`).
-3. **GCP:** IdP → **Workforce Identity Federation**; bind IAM by
-   `principalSet://…/group/<group>` (`../../sso/terraform/gcp/main.tf`).
+**AWS (Identity Center — console + CLI):**
+```bash
+# In IAM Identity Center: set identity source = External IdP (SAML), upload the
+# IdP metadata, enable SCIM. Then assign the IdP group to a permission set:
+aws sso-admin list-instances
+# (permission sets + group assignments as code: ../../sso/terraform/aws/main.tf)
+```
+**Azure (Entra — native/federated):** Entra admin center → **Enterprise
+applications** or native users; assign the group → RBAC (`../../sso/terraform/azure/main.tf`).
+**GCP (Workforce Identity Federation — CLI):**
+```bash
+gcloud iam workforce-pools create external-idp --organization=<ORG_ID> --location=global
+gcloud iam workforce-pools providers create-oidc oidc-provider \
+  --workforce-pool=external-idp --location=global \
+  --issuer-uri="https://login.microsoftonline.com/<tenant>/v2.0" \
+  --client-id="<client-id>" --attribute-mapping="google.subject=assertion.sub,google.groups=assertion.groups"
+# Bind IAM by group:
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --role=roles/viewer \
+  --member="principalSet://iam.googleapis.com/locations/global/workforcePools/external-idp/group/role-platform-all-readonly"
+```
+(Full Terraform: `../../sso/terraform/gcp/main.tf`.)
 
-## Part C — Attack / observe: what SSO must prevent
-1. **No SSO baseline:** show that without federation you'd have 3 separate user
-   stores, 3 MFA setups, 3 offboarding steps — and a leaver could linger in one.
-2. Create a test user, add to a group, and confirm access appears in all three.
-
-## Part D — Prove the loop (the leaver test)
-1. **Joiner:** add the user to `role-…-readonly` → correct access appears in AWS,
-   Azure, GCP.
-2. **Mover:** change groups → entitlements shift in each cloud.
+## Part C — Prove the loop (the leaver test — the key artifact)
+1. **Joiner:** add a test user to `role-platform-all-readonly` in the IdP →
+   confirm read access appears in AWS, Azure, GCP.
+2. **Mover:** change the user's groups → entitlements shift in each cloud.
 3. **Leaver:** disable the user in the IdP → SCIM/federation removes access
-   **everywhere** within the provisioning SLA. **This is the key test.**
-4. Verify federation subjects are **pinned** (specific pools/apps/audiences).
+   **everywhere** within the provisioning SLA. Capture evidence.
 
 ## Verify
 ```bash
-# From each cloud, the federated user has ONLY their group's access:
-aws sts get-caller-identity           # SSO role, short-lived
-az account show                       # Entra user
-gcloud auth list                      # workforce identity
-# Toolkit posture across clouds (identity findings)
-bash ../../cloud/multicloud/scan_all.sh && python3 ../../cloud/multicloud/report.py
+aws sts get-caller-identity        # SSO role, short-lived
+az account show                    # Entra user
+gcloud auth list                   # workforce identity
+bash ../../cloud/multicloud/scan_all.sh && python3 ../../cloud/multicloud/report.py   # identity posture across clouds
 ```
-Success = one login + one MFA works in all three; access is group-driven; the
-leaver test removes access everywhere; no per-cloud human accounts remain
-(break-glass excepted).
 
 ## Cleanup
-Remove the test user/groups and (if just for the lab) the federation trusts —
-though you'll likely keep these for later multi-cloud labs.
+Remove the test user/groups; keep federation if you'll continue the track.
 
 ## Portfolio artifact
-- A **federation diagram** (one IdP → three clouds) with the group→entitlement
-  mapping per cloud.
-- The **leaver-test evidence** (access present → disabled → gone in each cloud) —
-  this single artifact impresses identity-focused interviewers.
+- A **federation diagram** (one IdP → three clouds) + group→entitlement mapping.
+- The **leaver-test evidence** (present → disabled → gone in each cloud).
 
 ## Stretch goals
-- Add **per-cloud break-glass** (cloud-native, outside federation) and test alerts.
-- Enforce **JIT everywhere** (Identity Center JIT / Entra PIM / GCP PAM) through a
-  consistent request workflow.
-- Run access reviews from IdP groups + per-cloud CIEM (`../../cloud/ciem/`).
+- Add per-cloud **break-glass** (cloud-native, outside federation); test alerts.
+- Enforce **JIT everywhere** (Identity Center JIT / Entra PIM / GCP PAM).
+- Access reviews from IdP groups + per-cloud CIEM (`../../cloud/ciem/`).

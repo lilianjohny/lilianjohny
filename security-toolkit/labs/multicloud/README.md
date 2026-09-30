@@ -13,6 +13,10 @@ Per-cloud skills don't automatically compose. In multi-cloud, the *same* person
 and the *same* pipeline span clouds, so the control plane must be **identity**,
 not any one cloud's tools. These labs build that unified plane and prove it.
 
+> **Each lab is copy-paste runnable:** commands for all three clouds inline
+> (`aws`/`az`/`gcloud`) plus IdP/console click-paths where a portal is the natural
+> path. Do the per-cloud Lab 00s first so auth + variables are set.
+
 ## Prerequisites
 - Per-cloud Lab 01 (authN/authZ) done in each cloud you'll include.
 - A central **IdP** (Entra ID or Okta) tenant you control.

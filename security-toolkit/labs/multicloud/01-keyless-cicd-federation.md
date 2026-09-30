@@ -1,49 +1,65 @@
 # Lab 01 — Keyless CI/CD Federation (Multi-Cloud)
 
 **Skills practiced:** OIDC workload identity federation · one pipeline → three
-keyless cloud trusts · scoped trust conditions (repo/branch/environment) ·
-eliminating long-lived cloud secrets from CI.
-**Proves (JD):** authN/authZ for machines + supply-chain security — no static keys
-anywhere.
+keyless cloud trusts · scoped trust conditions · eliminating static cloud secrets.
+**Proves (JD):** machine authN/authZ + supply-chain security.
 
 ## Objective
-Make a single GitHub Actions pipeline authenticate to **AWS, Azure, and GCP** with
-**no stored credentials** — every token short-lived and OIDC-exchanged, scoped to
-this repo (and branch/environment).
+One GitHub Actions pipeline authenticates to AWS, Azure, and GCP with **no stored
+credentials** — every token short-lived and OIDC-exchanged, scoped to this repo.
 
 ## Est. time / cost
 2–3 h · **~$0**.
 
 ## Prerequisites
-- Sandbox AWS + Azure + GCP; a GitHub repo you control.
-- Reference IaC: `../../iam/terraform/aws/main.tf`, `azure/main.tf`, `gcp/main.tf`,
-  and `../../iam/terraform/multicloud/README.md`.
+- Sandbox AWS + Azure + GCP; a GitHub repo you control. Reference IaC:
+  `../../iam/terraform/{aws,azure,gcp}/main.tf`, `../../iam/terraform/multicloud/README.md`.
 
 ---
 
-## Part A — Build the three trusts (as code)
-1. **AWS:** GitHub OIDC provider + a role with a trust policy scoped to
-   `repo:<org>/<repo>:environment:production` — outputs `github_ci_role_arn`.
-2. **Azure:** an Entra app + **federated credential** for the same subject —
-   outputs `github_ci_client_id`.
-3. **GCP:** a **Workload Identity Pool + Provider** + a least-privilege SA —
-   outputs `workload_identity_provider`, `ci_service_account_email`.
-   > Note the pinned subject condition in `../../iam/terraform/gcp/main.tf`.
+## Part A — Build the three trusts
+**AWS (OIDC provider + role):**
+```bash
+aws iam create-open-id-connect-provider \
+  --url https://token.actions.githubusercontent.com \
+  --client-id-list sts.amazonaws.com \
+  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
+cat > /tmp/trust.json <<EOF
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow",
+ "Principal":{"Federated":"arn:aws:iam::$ACCT_ID:oidc-provider/token.actions.githubusercontent.com"},
+ "Action":"sts:AssumeRoleWithWebIdentity",
+ "Condition":{"StringEquals":{"token.actions.githubusercontent.com:sub":"repo:<org>/<repo>:environment:production"}}}]}
+EOF
+aws iam create-role --role-name github-ci --assume-role-policy-document file:///tmp/trust.json
+```
+**Azure (app + federated credential):**
+```bash
+APPID=$(az ad app create --display-name github-ci --query appId -o tsv)
+az ad sp create --id "$APPID"
+az ad app federated-credential create --id "$APPID" --parameters '{
+ "name":"gh-prod","issuer":"https://token.actions.githubusercontent.com",
+ "subject":"repo:<org>/<repo>:environment:production","audiences":["api://AzureADTokenExchange"]}'
+```
+**GCP (workload identity pool + provider):**
+```bash
+gcloud iam workload-identity-pools create github --location=global
+gcloud iam workload-identity-pools providers create-oidc github-provider \
+  --location=global --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='<org>/<repo>'"
+```
 
 ## Part B — Attack / observe: why static keys are the risk
-1. Show the anti-pattern: putting `AWS_SECRET_ACCESS_KEY` / an Azure client secret
-   / a GCP SA JSON in GitHub **secrets**. A leaked long-lived key = standing
-   access with no expiry.
-2. Run `../../devsecops/` secret scanning / `gitleaks` to show how such keys get
-   caught (and why you never want them in the first place).
+```bash
+# Anti-pattern: a long-lived key in GitHub secrets. Show how it gets caught:
+bash ../../devsecops/secret_scan.sh .    # or gitleaks — flags committed cloud keys
+```
 
 ## Part C — Harden: one workflow, three keyless logins
-Create `.github/workflows/deploy.yml` (excerpt from
-`../../iam/terraform/multicloud/README.md`):
 ```yaml
-permissions:
-  id-token: write        # required for OIDC in all three
-  contents: read
+# .github/workflows/deploy.yml
+permissions: { id-token: write, contents: read }
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -55,35 +71,32 @@ jobs:
         with: { client-id: ${{ vars.AZURE_CLIENT_ID }}, tenant-id: ${{ vars.AZURE_TENANT_ID }}, subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }} }
       - uses: google-github-actions/auth@v2
         with: { workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}, service_account: ${{ vars.GCP_CI_SA_EMAIL }} }
+      - run: aws sts get-caller-identity && az account show && gcloud auth list
 ```
-Store the outputs as GitHub **variables** (identifiers, not secrets).
+Store the trust identifiers as GitHub **variables** (not secrets — they're not
+credentials).
 
 ## Part D — Verify
 ```bash
-# In the workflow, after each login step, prove identity with no stored keys:
-aws sts get-caller-identity
-az account show
-gcloud auth list
-# And prove NO long-lived cloud secrets exist in the repo/settings:
-gitleaks detect --source .        # clean
+# In the Actions run log: all three identity commands succeed, tokens short-lived.
+gitleaks detect --source .        # zero long-lived cloud keys in the repo ✅
 ```
-Success = all three logins succeed via OIDC, tokens are short-lived, the trust is
-scoped to this repo/branch/env, and there are zero long-lived cloud keys in CI.
-
-## Part E — Least privilege the CI identities
-Scope each CI role/SP/SA to only what the pipeline needs (deploy targets), not
-broad admin. Re-check with `../../cloud/ciem/aws_least_privilege.py` (AWS side).
 
 ## Cleanup
-Delete the OIDC providers/pools, CI roles/apps/SAs, and the workflow if not kept.
+```bash
+aws iam delete-role --role-name github-ci
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::$ACCT_ID:oidc-provider/token.actions.githubusercontent.com
+az ad app delete --id "$APPID"
+gcloud iam workload-identity-pools delete github --location=global --quiet
+```
 
 ## Portfolio artifact
 - The **deploy.yml** + a diagram: one pipeline → three keyless trusts.
-- A short writeup: "how OIDC federation removes standing cloud credentials," with
-  the scoped trust conditions you used.
+- A writeup: "how OIDC federation removes standing cloud credentials," with the
+  scoped trust conditions.
 
 ## Stretch goals
-- Add **environment protection rules** so only `production` deploys get the trust.
-- Add supply-chain steps (SBOM + image signing from the per-cloud Lab 02) so the
-  same keyless pipeline also proves artifact integrity.
+- Add **environment protection rules** so only `production` gets the trust.
+- Add SBOM + signing (per-cloud Lab 02) so the same keyless pipeline proves
+  artifact integrity.
 - Break the trust condition (wrong branch) and show the login is **denied**.
