@@ -1,0 +1,7 @@
+asset,criticality,owner,environment,notes
+web01,high,platform-team,prod,"Internet-facing web tier"
+payments-api,critical,payments-team,prod,"Processes cardholder data"
+internal-wiki,low,it,internal,"Internal docs"
+data-warehouse,critical,data-team,prod,"Holds sensitive datasets"
+build-runner,medium,devops,ci,"CI/CD runner"
+registry1.example/app:1.2.3,high,platform-team,prod,"Primary app container image"
