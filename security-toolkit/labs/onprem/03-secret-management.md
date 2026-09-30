@@ -1,69 +1,80 @@
 # Lab 03 — Secret Management & Machine Identity
 
-**Skills practiced:** centralized secret vaulting · dynamic/short-lived secrets ·
-rotation · machine identity (no static creds) · secret-sprawl detection ·
-encryption of secrets in transit/at rest.
-**Proves (JD — OpenAI InfraSec):** *"secret management"* and *"machine identity"*
-for large-scale infrastructure.
+**Skills practiced:** centralized vaulting · dynamic/short-lived secrets ·
+rotation · machine identity (no static creds) · secret-sprawl detection.
+**Proves (JD — OpenAI InfraSec):** *"secret management"* and *"machine identity."*
 
 ## Objective
 Replace static, sprawled secrets with a vault-backed model: services authenticate
-with a **machine identity**, fetch **short-lived** secrets, and everything
-rotates. Detect existing secret sprawl first, then fix it.
+with a machine identity, fetch short-lived secrets, everything rotates. Detect
+sprawl first, then fix it.
 
 ## Est. time / cost
-2–3 h · **~$0** (HashiCorp Vault dev/OSS or a cloud secrets manager free tier).
+2–3 h · **~$0** (HashiCorp Vault dev mode in Docker).
 
 ## Prerequisites
-- Docker or a Linux host. Optional: Vault OSS, or AWS/Azure/GCP secrets manager.
-- Toolkit: `../../devsecops/` secret scanning, `../../cloud/ciem/` (identity).
+- Docker. Toolkit: `../../devsecops/` secret scanning.
 
 ---
 
 ## Part A — Attack / observe: find the sprawl
-1. Scan a repo / config tree for hardcoded secrets:
-   ```bash
-   bash ../../devsecops/secret_scan.sh .    # or gitleaks
-   ```
-2. Note the anti-patterns: secrets in env files, container images (see
-   `../aws/02-container-image-security.md`), CI variables, and long-lived API
-   keys that never rotate.
+```bash
+bash ../../devsecops/secret_scan.sh .      # or: gitleaks detect --source .
+# Note anti-patterns: secrets in env files, container images (../aws/02), CI vars,
+# and long-lived API keys that never rotate.
+```
 
 ## Part B — Build: a vault + machine identity
-1. Stand up **Vault** (dev mode for the lab) or use a cloud secrets manager.
-2. Enable an **auth method for workloads** (Kubernetes SA, AppRole, or cloud IAM)
-   so a service proves a **machine identity** — not a shared password — to get
-   secrets.
-3. Store a secret; have a service fetch it at runtime via its identity.
+```bash
+# Vault dev server (lab only — never dev mode in prod)
+docker run --rm -d --name vault -p 8200:8200 \
+  -e VAULT_DEV_ROOT_TOKEN_ID=root -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 hashicorp/vault
+export VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=root
+vault status
+# AppRole = a machine identity (a workload proves identity, not a shared password)
+vault auth enable approle
+vault policy write app - <<'EOF'
+path "secret/data/app/*" { capabilities = ["read"] }
+EOF
+vault write auth/approle/role/app token_policies=app token_ttl=15m token_max_ttl=30m
+ROLE_ID=$(vault read -field=role_id auth/approle/role/app/role-id)
+SECRET_ID=$(vault write -f -field=secret_id auth/approle/role/app/secret-id)
+# The workload logs in with its identity and gets a SHORT-LIVED token
+APP_TOKEN=$(vault write -field=token auth/approle/login role_id=$ROLE_ID secret_id=$SECRET_ID)
+```
 
-## Part C — Harden: dynamic, short-lived, rotated
-1. Use **dynamic secrets** (e.g. Vault database secrets engine) so each service
-   gets **unique, short-TTL** credentials generated on demand — revoked on expiry.
-2. Enable **rotation** for static secrets that must exist; set TTLs everywhere.
-3. **Encrypt in transit** (TLS to the vault) and **at rest** (vault's own
-   encryption / KMS auto-unseal).
-4. **Least-privilege policies:** each identity can read only its own secrets
-   (the secret-management analogue of `../aws/04-multi-tenant-isolation.md`).
-5. Remove the sprawled secrets found in Part A; inject from the vault instead.
+## Part C — Harden: dynamic, short-lived, rotated, least-privilege
+```bash
+vault kv put secret/app/db password=$(openssl rand -base64 18)   # store a secret
+VAULT_TOKEN=$APP_TOKEN vault kv get secret/app/db                # app reads via its identity (15m TTL)
+# Dynamic DB secrets (unique, short-TTL creds per request) — enable + configure:
+vault secrets enable database
+# vault write database/config/mydb plugin_name=postgresql-database-plugin ...
+# vault write database/roles/app db_name=mydb creation_statements="CREATE ROLE ..." default_ttl=15m
+# Least privilege: the 'app' policy can read only secret/data/app/* — test denial:
+VAULT_TOKEN=$APP_TOKEN vault kv get secret/other 2>&1 | grep -i denied   # ✅ denied
+```
+Enable TLS to Vault and KMS/auto-unseal in real deployments; remove the sprawled
+secrets from Part A and inject from Vault instead.
 
 ## Part D — Verify
 ```bash
-# No secrets left in the tree:
-bash ../../devsecops/secret_scan.sh .          # clean
-# A service gets a short-lived credential via its machine identity, and a
-# different identity CANNOT read it (test cross-identity access → denied).
+bash ../../devsecops/secret_scan.sh .    # clean — no hardcoded secrets left
+# The app gets a 15m token via its machine identity; a different identity/policy
+# CANNOT read its secrets (tested above).
 ```
-Confirm: no static long-lived creds in code/images/CI; secrets are short-TTL and
-rotate; each machine identity is scoped to its own secrets.
+
+## Cleanup
+```bash
+docker rm -f vault
+```
 
 ## Portfolio artifact
 - **Before/after**: secret-scan sprawl → vault-backed, zero hardcoded secrets.
-- A **machine-identity diagram**: service → auth method → scoped policy →
-  short-lived secret.
+- A **machine-identity diagram**: service → AppRole → scoped policy → short-lived secret.
 - A note on **dynamic vs static** secrets and why short TTL shrinks blast radius.
 
 ## Stretch goals
-- Wire the vault into **Kubernetes** (CSI driver / agent injector) from
-  `../aws/03-eks-orchestration-security.md`.
-- Add **secret-access auditing** → your SIEM (`../../soc/`) and alert on anomalies.
+- Wire the vault into **Kubernetes** (CSI driver / agent injector) from `../aws/03`.
+- Send **secret-access audit logs** → your SIEM (`../../soc/`); alert on anomalies.
 - Implement **break-glass** secret access with heavy alerting.
