@@ -10,6 +10,11 @@ cloud-only portfolios have, and to match roles that span **on-prem + cloud**
 > the control. Attack steps target only equipment/VMs **you own**. Never touch a
 > datacenter or device you're not authorized for.
 
+> **Runnable where hardware allows:** labs give real commands (`ipmitool`,
+> `tpm2-tools`, `cryptsetup`/`systemd-cryptenroll`, Vault, `openssl`) plus
+> BIOS/BMC GUI steps; where a step needs physical hardware you don't have, do the
+> documented design + checklist instead.
+
 ## Why this track
 Cloud abstracts away the physical layer; on-prem doesn't. Roles securing
 datacenters and bare-metal (and protecting high-value data like model weights)
