@@ -24,6 +24,7 @@ Organized by discipline so you can reach for the right tool quickly.
 | `devsecops/`   | Cross-cutting shift-left tools (e.g. secret scanning)          |
 | `pentest/`     | Authorized, phase-ordered penetration testing (cloud + app), scope-gated |
 | `soc/`         | SOC compliance (DoD CSSP + public sector): incident reporting, ConMon, M-21-31 logging, POA&M |
+| `soc-reports/` | AICPA SOC 1/2/3 readiness: Trust Services Criteria, controls matrix, evidence & gap tracking |
 | `lib/`         | Shared helpers used across the toolkit                         |
 
 See `cloud/README.md` for the cloud DevSecOps suite (per-provider audits,

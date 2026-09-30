@@ -1,0 +1,11 @@
+request_id,description,control_id,owner,due_date,status,samples_required,samples_collected
+PBC-001,"Information security policy (approved, current)",CTL-01,CISO,2026-10-10,accepted,1,1
+PBC-002,"Access review evidence for the period (quarterly)",CTL-05,IT,2026-10-15,in_progress,3,2
+PBC-003,"New-hire access provisioning tickets (sample)",CTL-03,IT,2026-10-12,provided,25,25
+PBC-004,"Terminated-user deprovisioning evidence (sample)",CTL-03,IT,2026-10-12,in_progress,25,10
+PBC-005,"Change tickets with approval + testing (sample)",CTL-09,Eng,2026-10-20,not_started,40,0
+PBC-006,"Vulnerability scan reports (monthly)",CTL-07,SecOps,2026-10-08,provided,12,12
+PBC-007,"Incident response tabletop results",CTL-08,SecOps,2026-10-25,not_started,1,0
+PBC-008,"Backup success logs + DR test report",CTL-15,IT,2026-10-18,in_progress,12,9
+PBC-009,"Vendor risk assessments / subservice SOC 2 reports",CTL-13,Procurement,2026-10-22,not_started,5,0
+PBC-010,"Risk assessment memo (annual)",CTL-10,Risk,2026-10-14,accepted,1,1
