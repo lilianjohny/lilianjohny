@@ -51,16 +51,35 @@ $EDITOR pbc.csv                 # add requests, owners, due dates, sample counts
 python evidence/evidence_tracker.py pbc.csv --due-days 14
 ```
 
-## 6. Reuse toolkit evidence for SOC 2 Common Criteria
-Many CC controls are satisfied by evidence other parts of the toolkit produce:
+## 6. Auto-link toolkit evidence to SOC 2 controls (wired, not manual)
+Generate the CC evidence with the toolkit, drop the artifacts into one folder,
+then let the collector map them to controls and set status from what's found:
 ```bash
-# CC7.1 vulnerability scanning / CC6 access / CC8 change, etc.
-bash ../cloud/prowler_scan.sh aws --severity critical,high      # CC6/CC7 config
-python ../cloud/ciem/aws_least_privilege.py                     # CC6.1/CC6.3 access
-python ../vulnmgmt/report/vm_metrics.py deduped.jsonl --out vm.md  # CC7.1 remediation
+mkdir -p evidence_artifacts
+# Generate evidence (examples — run what applies to your scope):
+python ../cloud/ciem/aws_least_privilege.py            > evidence_artifacts/ciem.txt   # CC6 access
+python ../cloud/detection/aws_detection_coverage.py    > evidence_artifacts/detection.json # CC7.2
+bash   ../cloud/prowler_scan.sh aws --severity critical,high --output-dir evidence_artifacts/prowler
+python ../vulnmgmt/report/vm_metrics.py deduped.jsonl  --out evidence_artifacts/vm_report.md # CC7.1
+bash   ../dod/scripts/generate_sbom.sh --path . --out evidence_artifacts --name app         # SBOM
+python ../devsecops/secrets_scan.py .  # (or gitleaks -> evidence_artifacts/secrets.sarif)  # CC6.1
+python ../recon/tls_cert_check.py app.example.com      > evidence_artifacts/tls.txt          # CC6.7
+
+# Auto-link artifacts -> controls (status set from evidence found):
+python evidence/collect_evidence.py \
+    --sources soc2/evidence_sources.csv \
+    --evidence-dir evidence_artifacts \
+    --out controls_evidence.csv
+
+# Now readiness/gap run against LIVE evidence, not a hand-edited matrix:
+python soc2/readiness_assessment.py --tsc soc2/trust_services_criteria.csv \
+    --controls controls_evidence.csv --categories security,availability,confidentiality
+python gap_analysis/gap_report.py --controls controls_evidence.csv \
+    --tsc soc2/trust_services_criteria.csv --out gap_report.md
 ```
-See `../soc/frameworks/control_mapping.csv` for the SOC-capability → NIST
-SP 800-53 crosswalk (many SOC 2 CC criteria map to the same controls).
+`soc2/evidence_sources.csv` maps each control → TSC criteria → the evidence
+glob and the toolkit command that produces it. See `../soc/frameworks/control_mapping.csv`
+for the NIST SP 800-53 crosswalk.
 
 ## 7. Vendor / subservice organizations
 - Track vendors as controls (see `soc2/controls_matrix.csv` CTL-13).
