@@ -21,6 +21,8 @@ Organized by discipline so you can reach for the right tool quickly.
 | `cloud/`       | DevSecOps: AWS/Azure/GCP posture audits, IaC scan, CI/CD gate  |
 | `dod/`         | DoD DevSecOps software factory: mandatory control gates, SBOM/SWFT, cATO evidence, Sigstore signing |
 | `iam/`         | Secure IAM architecture + Terraform baseline (AWS/Azure/GCP + multi-cloud federation, 2026 zero-trust) |
+| `sso/`         | Single Sign-On: architecture, diagrams, process & Terraform (AWS Identity Center / Entra / GCP Workforce IF + multi-cloud) |
+| `zero-trust/`  | Zero Trust: policy, architecture, diagrams, implementation (NIST 800-207 / CISA ZTMM v2.0 / DoD) for each cloud + multi-cloud |
 | `appsec/`      | Application security: OpenAPI/API audit, CORS/cookie/JWT, SAST rules, DAST, ASVS, threat model |
 | `devsecops/`   | Cross-cutting shift-left tools (e.g. secret scanning)          |
 | `grc/`         | Governance, Risk & Compliance: risk register, multi-framework crosswalk, policy governance, GRC dashboard |
