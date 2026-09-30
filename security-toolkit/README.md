@@ -30,7 +30,9 @@ Organized by discipline so you can reach for the right tool quickly.
 | `soc/`         | SOC compliance (DoD CSSP + public sector): incident reporting, ConMon, M-21-31 logging, POA&M |
 | `soc-reports/` | AICPA SOC 1/2/3 readiness: Trust Services Criteria, controls matrix, evidence & gap tracking |
 | `vulnmgmt/`    | Vulnerability management program: normalize/enrich (KEV+EPSS)/dedupe/SLA-track/report |
-| `labs/`        | Hands-on practice labs (build→attack→harden→verify) for AWS, Azure, GCP + multi-cloud: authN/authZ, container, orchestration (EKS/AKS/GKE), multi-tenant, segmentation, detection |
+| `compliance/`  | DISA STIG `.ckl` evaluator / CI gate (CAT I/II/III scoring) |
+| `labs/`        | Hands-on practice labs (build→attack→harden→verify) for AWS, Azure, GCP, multi-cloud, on-prem/datacenter, and SOC/IR |
+| `job-tracks/`  | Per-job-posting gap matrices mapping each requirement to a tool/lab (KBR Cloud Engineer, OpenAI InfraSec, SOC/Cyber Eng) |
 | `lib/`         | Shared helpers used across the toolkit                         |
 
 See `cloud/README.md` for the cloud DevSecOps suite (per-provider audits,

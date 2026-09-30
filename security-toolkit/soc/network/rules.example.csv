@@ -1,0 +1,9 @@
+name,action,source,destination,service,port,protocol,log,enabled
+allow-web-in,allow,any,10.0.1.10,https,443,tcp,yes,yes
+mgmt-ssh-open,allow,any,10.0.1.0/24,ssh,22,tcp,yes,yes
+db-from-app,allow,10.0.2.0/24,10.0.3.10,mssql,1433,tcp,yes,yes
+legacy-telnet,allow,any,10.0.4.5,telnet,23,tcp,no,yes
+permit-all,allow,any,any,any,any,any,no,yes
+old-ftp-rule,allow,any,10.0.5.5,ftp,21,tcp,yes,no
+outbound-dns,allow,10.0.0.0/8,8.8.8.8,dns,53,udp,yes,yes
+rdp-jumpbox,allow,any,10.0.1.20,rdp,3389,tcp,yes,yes
