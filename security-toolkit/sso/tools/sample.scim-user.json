@@ -1,0 +1,18 @@
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+  ],
+  "id": "2819c223-7f76-453a-919d-413861904646",
+  "externalId": "jsmith",
+  "userName": "jsmith@example.com",
+  "name": {"givenName": "Jordan", "familyName": "Smith"},
+  "emails": [{"value": "jsmith@example.com", "primary": true}],
+  "active": true,
+  "groups": [{"value": "role-platform-all-readonly", "display": "Platform ReadOnly"}],
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "department": "Platform",
+    "manager": {"value": "26118915-6090-4610-87e4-49d8ca9f808d"}
+  },
+  "meta": {"resourceType": "User", "created": "2026-01-01T00:00:00Z"}
+}

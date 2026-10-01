@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+                xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                ID="_resp1" Version="2.0" IssueInstant="2099-01-01T00:00:00Z"
+                Destination="https://sp.example.com/acs">
+  <saml:Issuer>https://idp.example.org/metadata</saml:Issuer>
+  <samlp:Status>
+    <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </samlp:Status>
+  <saml:Assertion ID="_assn1" Version="2.0" IssueInstant="2099-01-01T00:00:00Z">
+    <saml:Issuer>https://idp.example.org/metadata</saml:Issuer>
+    <saml:Subject>
+      <saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">jsmith@example.com</saml:NameID>
+      <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+        <saml:SubjectConfirmationData Recipient="https://sp.example.com/acs"
+                                      NotOnOrAfter="2099-01-01T00:05:00Z"/>
+      </saml:SubjectConfirmation>
+    </saml:Subject>
+    <saml:Conditions NotBefore="2020-01-01T00:00:00Z" NotOnOrAfter="2099-01-01T00:05:00Z">
+      <saml:AudienceRestriction>
+        <saml:Audience>https://sp.example.com/metadata</saml:Audience>
+      </saml:AudienceRestriction>
+    </saml:Conditions>
+    <saml:AuthnStatement AuthnInstant="2099-01-01T00:00:00Z" SessionNotOnOrAfter="2099-01-01T08:00:00Z">
+      <saml:AuthnContext>
+        <saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef>
+      </saml:AuthnContext>
+    </saml:AuthnStatement>
+    <saml:AttributeStatement>
+      <saml:Attribute Name="email"><saml:AttributeValue>jsmith@example.com</saml:AttributeValue></saml:Attribute>
+      <saml:Attribute Name="groups"><saml:AttributeValue>role-platform-all-readonly</saml:AttributeValue></saml:Attribute>
+    </saml:AttributeStatement>
+  </saml:Assertion>
+</samlp:Response>
