@@ -35,6 +35,11 @@ this section is the **login/federation** half of that picture in depth.
 | `terraform/azure/main.tf` | Reference: Entra enterprise app (SAML SSO) + SCIM app role |
 | `terraform/gcp/main.tf` | Reference: Workforce Identity Pool + OIDC/SAML provider |
 | `validation/sso_posture_check.md` | Checklist to prove SSO is actually enforced |
+| `tools/` | Offline protocol validators: SAML response, OIDC discovery, SCIM resources (see `tools/README.md`) |
+
+> **Hands-on, protocol-level labs** (SAML · OAuth2 · OIDC · LDAP · Kerberos · SCIM)
+> with a local Docker stack live in [`../labs/sso/`](../labs/sso/); this section is
+> the architecture/design half.
 
 ## Quick mental model
 

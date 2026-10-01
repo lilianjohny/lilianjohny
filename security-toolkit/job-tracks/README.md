@@ -12,6 +12,7 @@ the job description, you can point to something you built and can run.
 | [`kbr-cloud-engineer.md`](kbr-cloud-engineer.md) | KBR — Cloud Engineer (AWS GovCloud, Navy AvPLM) | AWS SysOps, CloudWatch, DR/RTO-RPO, Windows/AD, EKS, DISA STIG / RMF / FedRAMP (IL5/6) |
 | [`openai-infrasec.md`](openai-infrasec.md) | OpenAI — Security Engineer, Infrastructure Security | Multi-cloud + on-prem/datacenter, K8s, service mesh, secret mgmt, machine identity |
 | [`jobgether-cybersecurity-engineer.md`](jobgether-cybersecurity-engineer.md) | Cybersecurity Engineer (SOC / IR) | Incident response, SOC alert triage, firewall/EDR, M365/Entra + Graph, ticketing |
+| [`sso-integration-engineer.md`](sso-integration-engineer.md) | SSO / Identity Integration Engineer | SAML, OAuth2, OIDC, LDAP, Kerberos, SCIM — design + support |
 
 ## How each track is organized
 1. **Requirement → evidence matrix** — every JD line → tool/lab/section, marked

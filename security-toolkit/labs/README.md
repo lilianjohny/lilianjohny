@@ -19,6 +19,7 @@ with the tools in this toolkit.
 | [`multicloud/`](multicloud/) | ✅ available | Securing all three as one system (do after the per-cloud tracks) |
 | [`onprem/`](onprem/) | ✅ available | On-prem & datacenter (construction→multi-tenant, bare-metal/firmware, secrets, sensitive-data) |
 | [`soc/`](soc/) | ✅ available | SOC & incident response (IR lifecycle, alert triage, M365/Entra hardening) |
+| [`sso/`](sso/) | ✅ available | SSO integration protocols hands-on: SAML, OAuth2, OIDC, LDAP, Kerberos, SCIM (local Docker stack) |
 
 Each per-cloud track mirrors the same 7 labs (00–06), so you learn the concept
 once and map it across clouds. The `multicloud/` track then unifies them:
