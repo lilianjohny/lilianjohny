@@ -15,6 +15,34 @@ Eight small, practical Python scripts. Each one covers a common task you can aut
 | 07 | API Automation | `automations/api_automation.py` | Fetch JSON from REST APIs with retries, pick fields, save the result |
 | 08 | Reporting | `automations/reporting.py` | Build Excel and HTML summary reports from a CSV |
 
+## 🎬 YouTube Agent (Claude Code skills)
+
+One idea in → a finished video package out. A main agent plus four modules, each with one job:
+
+| Skill | Module | What it does |
+|---|---|---|
+| `/youtube-agent` | Main agent | Sets up the channel once (niche, voice, audience → `youtube/channel.md`, `youtube/voice.md`), then routes any idea through the modules |
+| `/youtube-plan` | 1 · Plan | What to post, when to post, the whole-week plan |
+| `/youtube-create` | 2 · Create | Script from 21 hook formulas, titles, thumbnail concepts, description, edit plan |
+| `/youtube-engage` | 3 · Engage | Read and sort comments, draft replies in your voice, who to engage with |
+| `/youtube-virality` | 4 · Virality | Scan top videos by outlier score, break down why they won, rework them in your voice |
+
+Start with `/youtube-agent setup`, then `/youtube-agent a video idea for my channel: ...`.
+
+Live YouTube data (top videos, niche scans, comments) uses a free, read-only
+[YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) key:
+
+```bash
+export YOUTUBE_API_KEY=...
+python3 .claude/skills/youtube-agent/yt_data.py top --channel @yourhandle
+python3 .claude/skills/youtube-agent/yt_data.py search --query "home espresso" --days 90
+python3 .claude/skills/youtube-agent/yt_data.py comments --video https://youtu.be/<id>
+python3 .claude/skills/youtube-agent/yt_data.py title "My Title Idea"   # no key needed
+```
+
+Without a key, the skills work from links, pasted comments, or a CSV export (`top --csv`).
+Claude drafts everything; you publish and post replies yourself.
+
 ## Setup
 
 ```bash
