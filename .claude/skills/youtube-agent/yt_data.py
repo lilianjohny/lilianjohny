@@ -110,7 +110,7 @@ def lint_title(title: str) -> list[str]:
         notes.append("more than one '!'")
     if re.search(r"\b(episode|ep\.?|part|vlog)\s*#?\d+", title, re.I):
         notes.append("episode/part numbers mean nothing to a new viewer: lead with the payoff")
-    if not re.search(r"\d|\b(how|why|what|i|you|never|stop|best|worst|vs)\b", title, re.I):
+    if not re.search(r"\d|\b(how|why|what|who|i|you|your|never|stop|best|worst|vs)\b", title, re.I):
         notes.append("no number, question word, 'you/I' or contrast: check it creates curiosity")
     return notes or ["ok"]
 
